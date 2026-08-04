@@ -687,7 +687,7 @@
       <p class="vendor-scope">
         다운로드 버튼을 누르면 새 창이 열리며 파일이 저장됩니다 — 팝업이 차단됐다는 알림이 뜨면 허용으로 바꿔주세요.<br />
         현재 자동 분류되는 업체: <b>진과유통(복숭아)</b> · <b>캄므유통(당근·감자)</b> · <b>몬딱제주(미니밤호박)</b> · <b>마니팜(양파)</b> · <b>신대장떡볶이(떡볶이밀키트)</b> · <b>례답(벌꿀스틱)</b>.
-        캄므유통은 당근·감자 발주서가 각각 따로 나옵니다. 매핑에 없는 상품만 미대상 목록에 표시됩니다.
+        캄므유통은 당근·감자가 한 발주서에 함께 담깁니다. 매핑에 없는 상품만 미대상 목록에 표시됩니다.
       </p>
     </section>
   </div>
@@ -824,7 +824,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
-    carrot: { name: "캄므유통", product: "국내산 흙당근", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근_발주.xlsx" },
+    carrot: { name: "캄므유통", product: "국내산 흙당근·수미감자", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     pumpkin: { name: "몬딱제주", product: "제주 미니밤호박", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
     potato: { name: "캄므유통", product: "수미감자", swatch: "#b08a3a", emoji: "🥔", file: "캄므유통_감자_발주.xlsx" },
     onion: { name: "마니팜", product: "국내산 햇양파", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
@@ -882,7 +882,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("복숭아") !== -1) return "peach";
     if (name.indexOf("당근") !== -1) return "carrot";
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
-    if (name.indexOf("감자") !== -1) return "potato";
+    if (name.indexOf("감자") !== -1) return "carrot";
     if (name.indexOf("양파") !== -1) return "onion";
     if (name.indexOf("떡볶이") !== -1) return "tteok";
     if (name.indexOf("벌꿀스틱") !== -1 || name.indexOf("꿀스틱") !== -1) return "honey";
@@ -915,7 +915,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var ws = wb.Sheets["기본양식"];
     var r = 1;
     rows.forEach(function (row) {
-      var f = buildCarrotFields(row.option);
+      var pname, popt;
+      if (row.name.indexOf("감자") !== -1) {
+        pname = "수미감자";
+        popt = cleanOption(row.option);
+      } else {
+        var f = buildCarrotFields(row.option);
+        pname = f[0];
+        popt = f[1];
+      }
       setCell(ws, r, 5, SENDER_NAME);
       setCell(ws, r, 6, SENDER_PHONE_DASH);
       setCell(ws, r, 7, row.receiver);
@@ -923,8 +931,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 11, row.zipcode, "s");
       setCell(ws, r, 12, row.address);
       setCell(ws, r, 13, memo(row.entrancePw));
-      setCell(ws, r, 14, f[0]);
-      setCell(ws, r, 15, f[1]);
+      setCell(ws, r, 14, pname);
+      setCell(ws, r, 15, popt);
       setCell(ws, r, 16, row.qty, "n");
       r++;
     });
@@ -1120,7 +1128,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       buckets[cat].forEach(function (row) {
         try {
           if (cat === "peach") buildPeachName(row.option);
-          if (cat === "carrot") buildCarrotFields(row.option);
+          if (cat === "carrot" && row.name.indexOf("감자") === -1) buildCarrotFields(row.option);
           if (cat === "pumpkin") buildPumpkinName(row.option);
           ok.push(row);
         } catch (e) {
