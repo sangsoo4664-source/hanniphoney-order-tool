@@ -964,12 +964,46 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var PEACH_TEMPLATE_LAST_ROW = 306; // 1-indexed last row with pre-built VLOOKUP formulas
   var PEACH_CAPACITY = PEACH_TEMPLATE_LAST_ROW - 7 + 1; // data rows 7..306
 
+  // 진과유통 현재 판매가 (가격 바뀌면 여기 숫자만 수정). 홈페이지 옵션가와 일치해야 매칭됨.
+  var PEACH_PRICE_OVERRIDE = {
+    "천도 복숭아 1kg (로얄과 8-11개)": 9600,
+    "천도 복숭아 2kg (로얄과 15-21개)": 14700,
+    "천도 복숭아 3kg (로얄과 24-32개)": 19300,
+    "천도 복숭아 5kg (로얄과 40-54개)": 29000
+  };
+
+  function buildPeachPriceMap(wb) {
+    // '상품 리스트' 시트: A=품목 B=금액 C=상품번호 D=택배사 E=택배비
+    var map = {};
+    var lws = wb.Sheets["상품 리스트"];
+    if (!lws || !lws["!ref"]) return map;
+    var rng = XLSX.utils.decode_range(lws["!ref"]);
+    for (var lr = 1; lr <= rng.e.r; lr++) {
+      var nm = lws[XLSX.utils.encode_cell({ r: lr, c: 0 })];
+      if (!nm || nm.v === undefined || String(nm.v).trim() === "") continue;
+      function val(c) { var cc = lws[XLSX.utils.encode_cell({ r: lr, c: c })]; return cc ? cc.v : ""; }
+      map[String(nm.v).trim()] = { price: val(1), goodsNo: val(2), courier: val(3), dfee: val(4) };
+    }
+    return map;
+  }
+
   function fillPeach(rows) {
     var wb = loadTemplate("peach");
     var ws = wb.Sheets["발주 양식"];
+    var priceMap = buildPeachPriceMap(wb);
     var r = 6; // row7, zero-indexed
+    var seq = 1;
     rows.forEach(function (row) {
       var name = buildPeachName(row.option);
+      var info = priceMap[name.trim()] || {};
+      var qty = Number(row.qty) || 0;
+      // 홈페이지가 값으로 매칭하므로 수식 대신 실제 값을 직접 기입
+      setCell(ws, r, 0, seq, "n");                       // 순서
+      if (info.goodsNo !== undefined && info.goodsNo !== "") setCell(ws, r, 1, info.goodsNo); // 상품번호
+      if (info.courier) setCell(ws, r, 2, info.courier); // 택배사
+      if (info.dfee) setCell(ws, r, 3, info.dfee);       // 배송비조건
+      var unitPrice = PEACH_PRICE_OVERRIDE.hasOwnProperty(name.trim()) ? PEACH_PRICE_OVERRIDE[name.trim()] : info.price;
+      if (unitPrice !== undefined && unitPrice !== "") setCell(ws, r, 4, Number(unitPrice) * qty, "n"); // 입금액 = 단가×수량
       setCell(ws, r, 6, name);
       setCell(ws, r, 7, row.qty, "n");
       setCell(ws, r, 8, SENDER_NAME);
@@ -980,6 +1014,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 13, row.address);
       setCell(ws, r, 14, memo(row.entrancePw));
       r++;
+      seq++;
     });
     return XLSX.write(wb, { type: "array", bookType: "xlsx" });
   }
@@ -1043,21 +1078,86 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return XLSX.write(wb, { type: "array", bookType: "xlsx" });
   }
 
-  function fillTteok(rows) {
-    var wb = loadTemplate("sindaejang");
-    var ws = wb.Sheets["Sheet1"];
-    var r = 1;
-    rows.forEach(function (row) {
-      setCell(ws, r, 0, row.receiver);
-      setCell(ws, r, 1, row.receiverPhone, "s");
-      setCell(ws, r, 2, row.address);
-      setCell(ws, r, 3, cleanOption(row.option));
-      setCell(ws, r, 4, row.qty, "n");
-      setCell(ws, r, 5, memo(row.entrancePw));
-      r++;
+  // ── 원본 서식(색상 등) 100% 보존용: 무압축(STORED) zip 재작성 ──
+  var _CRCT = (function () { var c, t = []; for (var n = 0; n < 256; n++) { c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function _crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = _CRCT[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function _toBytes(x) {
+    if (x instanceof Uint8Array) return x;
+    if (typeof x === "string") { var a = new Uint8Array(x.length); for (var i = 0; i < x.length; i++) a[i] = x.charCodeAt(i) & 255; return a; }
+    if (x && typeof x.length === "number") return new Uint8Array(x);
+    return new Uint8Array(0);
+  }
+  function _strToBytes(s) { return new TextEncoder().encode(s); }
+  function _bytesToStr(b) { return new TextDecoder("utf-8").decode(_toBytes(b)); }
+  function _zipStore(files) {
+    var enc = new TextEncoder();
+    function u16(n) { return [n & 255, (n >> 8) & 255]; }
+    function u32(n) { return [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255]; }
+    var parts = [], central = [], offset = 0;
+    files.forEach(function (f) {
+      var nameB = enc.encode(f.name);
+      var data = _toBytes(f.bytes);
+      var crc = _crc32(data), size = data.length;
+      var local = [].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(size), u32(size), u16(nameB.length), u16(0));
+      parts.push(new Uint8Array(local), nameB, data);
+      var cent = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(size), u32(size), u16(nameB.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset));
+      central.push(new Uint8Array(cent), nameB);
+      offset += local.length + nameB.length + size;
     });
-    ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(r - 1, 1), c: 5 } });
-    return XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    var cstart = offset, csize = 0;
+    central.forEach(function (c) { csize += c.length; });
+    var eocd = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(csize), u32(cstart), u16(0)));
+    var all = parts.concat(central, [eocd]);
+    var total = 0; all.forEach(function (p) { total += p.length; });
+    var out = new Uint8Array(total), o = 0;
+    all.forEach(function (p) { out.set(p, o); o += p.length; });
+    return out;
+  }
+  function _xmlEsc(v) { return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+  function injectSindaejang(xml, rows) {
+    var STY = { A: 9, B: 9, C: 9, D: 2, E: 4, F: 9 };
+    function sc(col, rn, val) {
+      if (val == null || val === "") return '<c r="' + col + rn + '" s="' + STY[col] + '"/>';
+      return '<c r="' + col + rn + '" s="' + STY[col] + '" t="inlineStr"><is><t xml:space="preserve">' + _xmlEsc(val) + '</t></is></c>';
+    }
+    function nc(col, rn, val) {
+      if (val == null || val === "") return '<c r="' + col + rn + '" s="' + STY[col] + '"/>';
+      return '<c r="' + col + rn + '" s="' + STY[col] + '"><v>' + Number(val) + '</v></c>';
+    }
+    var sdS = xml.indexOf("<sheetData>") + "<sheetData>".length;
+    var sdE = xml.indexOf("</sheetData>");
+    var body = xml.slice(sdS, sdE);
+    var header = body.slice(0, body.indexOf("</row>") + 6);
+    var data = "";
+    rows.forEach(function (r, i) {
+      var rn = i + 2;
+      data += '<row r="' + rn + '" spans="1:6">' +
+        sc("A", rn, r.receiver) + sc("B", rn, r.receiverPhone) + sc("C", rn, r.address) +
+        sc("D", rn, cleanOption(r.option)) + nc("E", rn, r.qty) + sc("F", rn, memo(r.entrancePw)) + "</row>";
+    });
+    var nextRn = rows.length + 2;
+    var ti = body.indexOf('<row r="' + nextRn + '"');
+    var tail = ti >= 0 ? body.slice(ti) : "";
+    return xml.slice(0, sdS) + header + data + tail + xml.slice(sdE);
+  }
+
+  function fillTteok(rows) {
+    // 원본(신대장) 파일을 통째로 유지하고 데이터만 주입 → 색상·서식 그대로
+    var wb = XLSX.read(TEMPLATES_B64.sindaejang, { type: "base64", bookFiles: true });
+    var files = [], shIdx = -1;
+    Object.keys(wb.files).forEach(function (name) {
+      if (!name || name.charCodeAt(0) < 33) return;
+      var ent = wb.files[name];
+      if (!ent || ent.content === undefined) return;
+      if (name === "xl/worksheets/sheet1.xml") shIdx = files.length;
+      files.push({ name: name, bytes: ent.content });
+    });
+    if (shIdx >= 0) {
+      var xml = _bytesToStr(files[shIdx].bytes);
+      files[shIdx].bytes = _strToBytes(injectSindaejang(xml, rows));
+    }
+    return _zipStore(files);
   }
 
   function fillHoney(rows) {
