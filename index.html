@@ -824,7 +824,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
-    carrot: { name: "캄므유통", product: "국내산 흙당근·수미감자", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
+    carrot: { name: "캄므유통", product: "국내산 흙당근·수미감자·완숙토마토", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     pumpkin: { name: "몬딱제주", product: "제주 미니밤호박", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
     potato: { name: "캄므유통", product: "수미감자", swatch: "#b08a3a", emoji: "🥔", file: "캄므유통_감자_발주.xlsx" },
     onion: { name: "마니팜", product: "국내산 햇양파", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
@@ -883,6 +883,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("당근") !== -1) return "carrot";
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
     if (name.indexOf("감자") !== -1) return "carrot";
+    if (name.indexOf("토마토") !== -1) return "carrot";
     if (name.indexOf("양파") !== -1) return "onion";
     if (name.indexOf("떡볶이") !== -1) return "tteok";
     if (name.indexOf("벌꿀스틱") !== -1 || name.indexOf("꿀스틱") !== -1) return "honey";
@@ -910,6 +911,21 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return XLSX.read(TEMPLATES_B64[key], { type: "base64", sheetStubs: true });
   }
 
+  function buildTomatoFields(optionText) {
+    var t = String(optionText || "");
+    var size = "";
+    if (t.indexOf("대과") !== -1) size = "대과";
+    else if (t.indexOf("중과") !== -1) size = "중과";
+    else if (t.indexOf("소과") !== -1) size = "소과";
+    else if (t.indexOf("대") !== -1) size = "대과";
+    else if (t.indexOf("중") !== -1) size = "중과";
+    else if (t.indexOf("소") !== -1) size = "소과";
+    var w = extractWeightKg(t);
+    var product = "완숙토마토" + (size ? " " + size : "");
+    var option = (w != null ? w + "kg" : cleanOption(t));
+    return [product, option];
+  }
+
   function fillCarrot(rows) {
     var wb = loadTemplate("carrot");
     var ws = wb.Sheets["기본양식"];
@@ -919,6 +935,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       if (row.name.indexOf("감자") !== -1) {
         pname = "수미감자";
         popt = cleanOption(row.option);
+      } else if (row.name.indexOf("토마토") !== -1) {
+        var tf = buildTomatoFields(row.option);
+        pname = tf[0];
+        popt = tf[1];
       } else {
         var f = buildCarrotFields(row.option);
         pname = f[0];
@@ -1243,7 +1263,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       buckets[cat].forEach(function (row) {
         try {
           if (cat === "peach") buildPeachName(row.option);
-          if (cat === "carrot" && row.name.indexOf("감자") === -1) buildCarrotFields(row.option);
+          if (cat === "carrot" && row.name.indexOf("감자") === -1 && row.name.indexOf("토마토") === -1) buildCarrotFields(row.option);
           if (cat === "pumpkin") buildPumpkinName(row.option);
           ok.push(row);
         } catch (e) {
