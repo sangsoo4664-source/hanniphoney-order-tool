@@ -1553,6 +1553,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var TRACK_KEYS = ["운송장번호", "송장번호", "운송장", "tracking", "invoice no"];
   var COURIER_KEYS = ["택배사", "배송사", "courier"];
   var RECEIVER_NAME_KEYS = ["수령인명", "수취인 성명", "수령자 명", "수령인", "수취인", "받는분", "받는사람"];
+  var PRODUCT_KEYS = ["상품명", "품목명", "상품 이름", "옵션명", "품목"];
+  function categoryOf(name) {
+    var n = String(name || "");
+    if (n.indexOf("복숭아") !== -1) return "peach";
+    if (n.indexOf("밤호박") !== -1 || n.indexOf("호박") !== -1) return "pumpkin";
+    if (n.indexOf("당근") !== -1) return "carrot";
+    if (n.indexOf("감자") !== -1) return "potato";
+    if (n.indexOf("토마토") !== -1) return "tomato";
+    if (n.indexOf("양파") !== -1) return "onion";
+    if (n.indexOf("벌꿀") !== -1 || n.indexOf("꿀스틱") !== -1) return "honey";
+    if (n.indexOf("떡볶이") !== -1 || n.indexOf("달대장") !== -1 || n.indexOf("로제") !== -1 || n.indexOf("모듬튀김") !== -1 || n.indexOf("어묵") !== -1 || n.indexOf("김말이") !== -1 || n.indexOf("당면") !== -1 || n.indexOf("만두") !== -1) return "tteok";
+    return "";
+  }
 
   function isSenderLabel(v) {
     return SENDER_HINTS.some(function (h) { return v.indexOf(h) !== -1; });
@@ -1563,7 +1576,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var range = XLSX.utils.decode_range(ws["!ref"]);
     var best = null;
     for (var r = range.s.r; r <= Math.min(range.e.r, range.s.r + 9); r++) {
-      var cols = { phone: -1, phonePriority: -1, track: -1, courier: -1, name: -1 };
+      var cols = { phone: -1, phonePriority: -1, track: -1, courier: -1, name: -1, product: -1 };
       var score = 0;
       for (var c = range.s.c; c <= range.e.c; c++) {
         var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
@@ -1579,6 +1592,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         if (cols.track === -1 && TRACK_KEYS.some(function (k) { return v.toLowerCase().indexOf(k.toLowerCase()) !== -1; })) { cols.track = c; score++; }
         if (cols.courier === -1 && COURIER_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.courier = c; score++; }
         if (cols.name === -1 && RECEIVER_NAME_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.name = c; score++; }
+        if (cols.product === -1 && PRODUCT_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.product = c; }
       }
       if (cols.phone !== -1 && cols.track !== -1 && (!best || score > best.score)) {
         best = { row: r, cols: cols, score: score };
@@ -1611,7 +1625,12 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           var nCell = ws[XLSX.utils.encode_cell({ r: r, c: header.cols.name })];
           name = nCell && nCell.v != null ? String(nCell.v).trim() : "";
         }
-        map[phone] = { tracking: track, courier: courier, name: name };
+        var prod = "";
+        if (header.cols.product !== -1) {
+          var pCell = ws[XLSX.utils.encode_cell({ r: r, c: header.cols.product })];
+          prod = pCell && pCell.v != null ? String(pCell.v).trim() : "";
+        }
+        (map[phone] = map[phone] || []).push({ tracking: track, courier: courier, name: name, category: categoryOf(prod) });
         rowsFound++;
       }
     });
@@ -1747,7 +1766,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       var range = XLSX.utils.decode_range(ws["!ref"]);
 
       var combinedMap = {};
-      readyInvoices.forEach(function (e) { Object.assign(combinedMap, e.map); });
+      readyInvoices.forEach(function (e) {
+        Object.keys(e.map).forEach(function (ph) {
+          (combinedMap[ph] = combinedMap[ph] || []).push.apply(combinedMap[ph], e.map[ph]);
+        });
+      });
 
       var matched = 0;
       var unmatched = [];
@@ -1756,11 +1779,20 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         if (!nameCell || !nameCell.v) continue;
         var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: COL.RECEIVER_PHONE })];
         var phone = normPhone(phoneCell && phoneCell.v);
-        var hit = phone ? combinedMap[phone] : null;
-        if (hit) {
+        var hits = phone ? combinedMap[phone] : null;
+        var chosen = null;
+        if (hits && hits.length) {
+          var rowCat = categoryOf(nameCell.v);
+          var unused = hits.filter(function (x) { return !x.used; });
+          if (rowCat) { for (var hi = 0; hi < unused.length; hi++) { if (unused[hi].category === rowCat) { chosen = unused[hi]; break; } } }
+          if (!chosen) { for (var hj = 0; hj < unused.length; hj++) { if (!unused[hj].category) { chosen = unused[hj]; break; } } }
+          if (!chosen && !rowCat && unused.length === 1) chosen = unused[0];
+        }
+        if (chosen) {
+          chosen.used = true;
           matched++;
-          setCell(ws, r, ORDER_TRACKING_COL, hit.tracking, "s");
-          if (hit.courier) setCell(ws, r, ORDER_COURIER_COL, hit.courier, "s");
+          setCell(ws, r, ORDER_TRACKING_COL, chosen.tracking, "s");
+          if (chosen.courier) setCell(ws, r, ORDER_COURIER_COL, chosen.courier, "s");
         } else {
           var receiverCell = ws[XLSX.utils.encode_cell({ r: r, c: COL.RECEIVER })];
           unmatched.push({
