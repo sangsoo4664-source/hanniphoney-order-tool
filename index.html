@@ -1721,7 +1721,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   function addInvoiceFiles(fileList) {
     mergeErrorBox.classList.remove("show");
     Array.prototype.forEach.call(fileList, function (file) {
-      var entry = { id: ++invoiceSeq, name: file.name, map: {}, rowsFound: 0, ok: false, loading: true };
+      var entry = { id: ++invoiceSeq, name: file.name, phoneMap: {}, nameMap: {}, rowsFound: 0, ok: false, loading: true };
       invoiceState.push(entry);
       renderInvoiceList();
       var reader = new FileReader();
@@ -1729,7 +1729,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         try {
           var wb = XLSX.read(reader.result, { type: "array", sheetStubs: true });
           var res = extractTrackingMap(wb);
-          entry.map = res.map;
+          entry.phoneMap = res.phoneMap;
+          entry.nameMap = res.nameMap;
           entry.rowsFound = res.rowsFound;
           entry.ok = res.ok;
         } catch (e) {
