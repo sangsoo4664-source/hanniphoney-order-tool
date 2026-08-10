@@ -1787,6 +1787,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         Object.keys(e.phoneMap || {}).forEach(function (k) { (combinedPhone[k] = combinedPhone[k] || []).push.apply(combinedPhone[k], e.phoneMap[k]); });
         Object.keys(e.nameMap || {}).forEach(function (k) { (combinedName[k] = combinedName[k] || []).push.apply(combinedName[k], e.nameMap[k]); });
       });
+      Object.keys(combinedPhone).forEach(function (k) { combinedPhone[k].forEach(function (x) { x.used = false; }); });
+      Object.keys(combinedName).forEach(function (k) { combinedName[k].forEach(function (x) { x.used = false; }); });
 
       var matched = 0;
       var unmatched = [];
