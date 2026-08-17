@@ -825,7 +825,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
     carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·완숙토마토", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
-    pumpkin: { name: "몬딱제주", product: "제주 미니밤호박", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
+    pumpkin: { name: "몬딱제주", product: "미니밤호박·제주청귤", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
     potato: { name: "캄므유통", product: "수미감자", swatch: "#b08a3a", emoji: "🥔", file: "캄므유통_감자_발주.xlsx" },
     onion: { name: "마니팜", product: "국내산 햇양파", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
     tteok: { name: "신대장떡볶이", product: "떡볶이 밀키트", swatch: "#c0392b", emoji: "🌶️", file: "신대장_떡볶이_발주.xlsx" },
@@ -882,6 +882,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("복숭아") !== -1) return "carrot"; // 천도복숭아 → 캄므유통
     if (name.indexOf("당근") !== -1) return "carrot";
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
+    if (name.indexOf("청귤") !== -1 || name.indexOf("풋귤") !== -1) return "pumpkin"; // 제주 청귤 → 몬딱제주
     if (name.indexOf("감자") !== -1) return "carrot";
     if (name.indexOf("토마토") !== -1) return "carrot";
     if (name.indexOf("양파") !== -1) return "onion";
@@ -971,12 +972,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return XLSX.write(wb, { type: "array", bookType: "xlsx" });
   }
 
+  function buildChunggyulName(optionText) {
+    var w = extractWeightKg(optionText);
+    return "[박스포함] 로얄과 청귤(풋귤) " + (w != null ? w : "") + "kg";
+  }
+
   function fillPumpkin(rows) {
     var wb = loadTemplate("pumpkin");
     var ws = wb.Sheets["sheet001"];
     var r = 1;
     rows.forEach(function (row) {
-      var name = buildPumpkinName(row.option);
+      var name = (row.name.indexOf("청귤") !== -1 || row.name.indexOf("풋귤") !== -1)
+        ? buildChunggyulName(row.option)
+        : buildPumpkinName(row.option);
       setCell(ws, r, 2, name);
       setCell(ws, r, 3, row.qty, "n");
       setCell(ws, r, 4, SENDER_NAME);
@@ -1275,7 +1283,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         try {
           if (cat === "peach") buildPeachName(row.option);
           if (cat === "carrot" && row.name.indexOf("감자") === -1 && row.name.indexOf("토마토") === -1 && row.name.indexOf("복숭아") === -1) buildCarrotFields(row.option);
-          if (cat === "pumpkin") buildPumpkinName(row.option);
+          if (cat === "pumpkin" && row.name.indexOf("청귤") === -1 && row.name.indexOf("풋귤") === -1) buildPumpkinName(row.option);
           ok.push(row);
         } catch (e) {
           var key = VENDOR_META[cat].name + " — " + row.option.replace(/\n/g, " / ");
