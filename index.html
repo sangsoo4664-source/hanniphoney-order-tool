@@ -1827,6 +1827,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           setCell(ws, r, ORDER_TRACKING_COL, chosen.tracking, "s");
           var cr = chosen.courier;
           if (!cr && rowCat === "peach") cr = "롯데택배";
+          cr = String(cr || "").replace(/s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
           if (cr) setCell(ws, r, ORDER_COURIER_COL, cr, "s");
         } else {
           unmatched.push({
