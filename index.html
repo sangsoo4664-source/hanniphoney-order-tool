@@ -934,6 +934,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return [product, option];
   }
 
+  function joinDetailAddr(a) {
+    a = String(a == null ? "" : a).replace(/\s+/g, " ").trim();
+    a = a.replace(/(\d+동)\s+(\d+호)/g, "$1$2");
+    a = a.replace(/\s+(\d+호)(\s|$)/g, "$1$2").trim();
+    return a;
+  }
+
   function fillCarrot(rows) {
     var wb = loadTemplate("carrot");
     var ws = wb.Sheets["기본양식"];
@@ -961,7 +968,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 7, row.receiver);
       setCell(ws, r, 8, row.receiverPhone, "s");
       setCell(ws, r, 11, row.zipcode, "s");
-      setCell(ws, r, 12, row.address);
+      setCell(ws, r, 12, joinDetailAddr(row.address));
       setCell(ws, r, 13, memo(row.entrancePw));
       setCell(ws, r, 14, pname);
       setCell(ws, r, 15, popt);
@@ -1827,7 +1834,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           setCell(ws, r, ORDER_TRACKING_COL, chosen.tracking, "s");
           var cr = chosen.courier;
           if (!cr && rowCat === "peach") cr = "롯데택배";
-          cr = String(cr || "").replace(/s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
+          cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
           if (cr) setCell(ws, r, ORDER_COURIER_COL, cr, "s");
         } else {
           unmatched.push({
