@@ -1137,6 +1137,29 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return v;
   }
 
+  // 례답 전용: 옵션명(천연4종세트/꿀보자기세트)이 세트 종류를 담고 있으면 상품명 앞에 붙임
+  function buildHoneyName(rawOption) {
+    var raw = String(rawOption || "").replace(/^\s*\d+\.\s*/, "");
+    var head = raw, detail = raw;
+    var ci = raw.indexOf(": ");
+    if (ci >= 0) { head = raw.slice(0, ci); detail = raw.slice(ci + 2); }
+    function scrub(s) {
+      return String(s)
+        .replace(/[\u2764\u2665\u2661][^\u2764\u2665\u2661]*[\u2764\u2665\u2661]/g, " ")
+        .replace(/\[[^\]]*\]/g, " ")
+        .replace(/[\u2605\u2606]/g, " ")
+        .replace(/BEST|\uCD5C\uC800\uAC00|\uC778\uAE30|\uCD94\uCC9C|\uCD08\uD2B9\uAC00|\uD55C\uC815\uC138\uC77C|\uD488\uC9C8\uBCF4\uC7A5|\uCD94\uAC00\d+%\uD560\uC778/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    var d = scrub(detail);
+    var prefix = "";
+    if (head.indexOf("\uCC9C\uC5F04\uC885\uC138\uD2B8") !== -1) prefix = "\uCC9C\uC5F04\uC885\uC138\uD2B8"; // 천연4종세트
+    else if (head.indexOf("\uAFC0\uBCF4\uC790\uAE30\uC138\uD2B8") !== -1) prefix = "\uAFC0\uBCF4\uC790\uAE30\uC138\uD2B8"; // 꿀보자기세트
+    if (prefix && d.indexOf(prefix) === -1) return prefix + " " + d;
+    return d;
+  }
+
   function fillPotato(rows) {
     var wb = loadTemplate("carrot");
     var ws = wb.Sheets["기본양식"];
@@ -1283,7 +1306,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 5, row.receiver);
       setCell(ws, r, 6, row.receiverPhone, "s");
       setCell(ws, r, 8, row.address);
-      setCell(ws, r, 10, cleanOption(row.option));
+      setCell(ws, r, 10, buildHoneyName(row.option));
       setCell(ws, r, 12, row.qty, "n");
       r++;
     });
