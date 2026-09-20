@@ -1923,7 +1923,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           matched++;
           setCell(ws, r, ORDER_TRACKING_COL, chosen.tracking, "s");
           var cr = chosen.courier;
-          if (!cr && rowCat === "peach") cr = "롯데택배";
+          if (rowCat === "honey") cr = "롯데택배"; // 례답 전용택배 = 롯데 (한진 오매칭 방지, 강제)
+          else if (!cr && rowCat === "peach") cr = "롯데택배";
           cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
           if (cr) setCell(ws, r, ORDER_COURIER_COL, cr, "s");
         } else {
