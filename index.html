@@ -633,7 +633,7 @@
           </svg>
         </div>
         <div class="title">주문 내역 엑셀을 여기로 드래그하세요</div>
-        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> · 올웨이즈·TOGLE <b>여러 개 한번에</b> 가능</div>
+        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> · 올웨이즈·TOGLE·토스 <b>여러 개 한번에</b> 가능</div>
         <input type="file" id="fileInput" accept=".xlsx" multiple />
       </div>
       <div class="filebar" id="filebar">
@@ -704,7 +704,7 @@
           </svg>
         </div>
         <div class="title">운송장을 채워 넣을 주문 내역 원본을 올려주세요</div>
-        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> · 올웨이즈·TOGLE <b>함께</b> 올려도 각각 완성본 출력</div>
+        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> · 올웨이즈·TOGLE·토스 <b>함께</b> 올려도 각각 완성본 출력</div>
         <input type="file" id="baseFileInput" accept=".xlsx" multiple />
       </div>
       <div class="filebar" id="baseFilebar">
@@ -1362,16 +1362,45 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var FILLERS = { peach: fillPeach, carrot: fillCarrot, pumpkin: fillPumpkin, potato: fillPotato, onion: fillOnion, tteok: fillTteok, honey: fillHoney };
 
-  // 주문 파일 형식 자동 인식 (올웨이즈 주문내역 / TOGLE 출고내역서)
+  // 주문 파일 형식 자동 인식 (올웨이즈 주문내역 / TOGLE 출고내역서 / 토스 주문배송관리)
+  // 반환: 각 열 인덱스 + dataStart(데이터 시작행) + COURIER/TRACKING(합치기용) + format
   function detectOrderCols(ws) {
     var range = XLSX.utils.decode_range(ws["!ref"]);
-    var hr = range.s.r;
-    function hv(c) { var cell = ws[XLSX.utils.encode_cell({ r: hr, c: c })]; return cell && cell.v != null ? String(cell.v).trim() : ""; }
-    // TOGLE 출고내역서: 상품명=10, 옵션=12, 수량=14, 수령인=5, 주소=6, 우편번호=7, 수령인전화번호=8
-    if (hv(10) === "상품명" && hv(12) === "옵션") {
-      return { PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1, RECEIVER: 5, RECEIVER_PHONE: 8 };
+    function cellStr(r, c) { var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })]; return cell && cell.v != null ? String(cell.v).trim() : ""; }
+    // 헤더행 탐색: 처음 6행 안에서 "상품명"이 있는 행
+    for (var hr = range.s.r; hr <= Math.min(range.s.r + 5, range.e.r); hr++) {
+      var idx = {};
+      for (var c = range.s.c; c <= range.e.c; c++) { var v = cellStr(hr, c); if (v && !(v in idx)) idx[v] = c; }
+      // 토스 주문배송관리: 옵션명 + 수령인명 + 송장번호 (헤더 아래 "수정 불가/가능" 안내행 있음)
+      if (idx["상품명"] != null && idx["옵션명"] != null && idx["수령인명"] != null && idx["송장번호"] != null) {
+        var ds = hr + 1;
+        if (/수정\s*(불가|가능)/.test(cellStr(ds, idx["상품명"])) || /수정\s*(불가|가능)/.test(cellStr(ds, range.s.c))) ds = hr + 2;
+        return {
+          PRODUCT_NAME: idx["상품명"], OPTION: idx["옵션명"],
+          QTY: (idx["주문건수"] != null ? idx["주문건수"] : idx["수량"]),
+          ADDRESS: idx["배송지"], ZIPCODE: idx["우편번호"], ENTRANCE_PW: -1,
+          RECEIVER: idx["수령인명"], RECEIVER_PHONE: idx["수령인 연락처"],
+          COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: idx["송장번호"],
+          dataStart: ds, format: "토스"
+        };
+      }
+      // TOGLE 출고내역서: 상품명=10, 옵션=12
+      if (idx["상품명"] === 10 && idx["옵션"] === 12) {
+        return {
+          PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1,
+          RECEIVER: 5, RECEIVER_PHONE: 8, COURIER: 18, TRACKING: 19,
+          dataStart: hr + 1, format: "TOGLE"
+        };
+      }
     }
-    return COL; // 기본: 올웨이즈 주문내역
+    // 기본: 올웨이즈 주문내역
+    return {
+      PRODUCT_NAME: COL.PRODUCT_NAME, OPTION: COL.OPTION, QTY: COL.QTY,
+      ADDRESS: COL.ADDRESS, ZIPCODE: COL.ZIPCODE, ENTRANCE_PW: COL.ENTRANCE_PW,
+      RECEIVER: COL.RECEIVER, RECEIVER_PHONE: COL.RECEIVER_PHONE,
+      COURIER: ORDER_COURIER_COL, TRACKING: ORDER_TRACKING_COL,
+      dataStart: range.s.r + 1, format: "올웨이즈"
+    };
   }
 
   function loadOrders(arrayBuffer) {
@@ -1380,7 +1409,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var range = XLSX.utils.decode_range(ws["!ref"]);
     var cols = detectOrderCols(ws);
     var rows = [];
-    for (var r = range.s.r + 1; r <= range.e.r; r++) {
+    for (var r = cols.dataStart; r <= range.e.r; r++) {
       var get = (function (rr) {
         return function (c) {
           if (c == null || c < 0) return undefined;
@@ -1741,13 +1770,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var ORDER_COURIER_COL = 21; // V 택배사
   var ORDER_TRACKING_COL = 22; // W 운송장번호
 
-  // 합치기 기준파일 형식별 열 위치 (올웨이즈 / TOGLE 자동 인식)
+  // 합치기 기준파일 형식별 열 위치 (올웨이즈 / TOGLE / 토스 자동 인식)
   function detectMergeCols(ws) {
-    var base = detectOrderCols(ws);
-    if (base.PRODUCT_NAME === 10) { // TOGLE 출고내역서: 택배사코드=18(S), 송장번호=19(T)
-      return { PRODUCT_NAME: 10, RECEIVER: 5, RECEIVER_PHONE: 8, COURIER: 18, TRACKING: 19, format: "TOGLE" };
-    }
-    return { PRODUCT_NAME: COL.PRODUCT_NAME, RECEIVER: COL.RECEIVER, RECEIVER_PHONE: COL.RECEIVER_PHONE, COURIER: ORDER_COURIER_COL, TRACKING: ORDER_TRACKING_COL, format: "올웨이즈" };
+    var c = detectOrderCols(ws);
+    return { PRODUCT_NAME: c.PRODUCT_NAME, RECEIVER: c.RECEIVER, RECEIVER_PHONE: c.RECEIVER_PHONE, COURIER: c.COURIER, TRACKING: c.TRACKING, dataStart: c.dataStart, format: c.format };
   }
 
   function normPhone(v) {
@@ -2014,9 +2040,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         var wb = XLSX.read(bs.buffer, { type: "array", sheetStubs: true });
         var ws = wb.Sheets[wb.SheetNames[0]];
         var range = XLSX.utils.decode_range(ws["!ref"]);
-        var mc = detectMergeCols(ws); // 올웨이즈/TOGLE 열 자동 인식
+        var mc = detectMergeCols(ws); // 올웨이즈/TOGLE/토스 열 자동 인식
         var matched = 0, unmatched = [];
-        for (var r = range.s.r + 1; r <= range.e.r; r++) {
+        for (var r = mc.dataStart; r <= range.e.r; r++) {
           var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.PRODUCT_NAME })];
           if (!nameCell || !nameCell.v) continue;
           var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER_PHONE })];
