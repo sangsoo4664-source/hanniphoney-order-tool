@@ -704,8 +704,8 @@
           </svg>
         </div>
         <div class="title">운송장을 채워 넣을 주문 내역 원본을 올려주세요</div>
-        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> 1개 · 올웨이즈·TOGLE 자동 인식</div>
-        <input type="file" id="baseFileInput" accept=".xlsx" />
+        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> · 올웨이즈·TOGLE <b>함께</b> 올려도 각각 완성본 출력</div>
+        <input type="file" id="baseFileInput" accept=".xlsx" multiple />
       </div>
       <div class="filebar" id="baseFilebar">
         <div class="fname" id="baseFname"></div>
@@ -749,17 +749,7 @@
         </div>
       </div>
 
-      <div class="vendor-card panel" style="--swatch:#3f6b34">
-        <div class="swatch">📮</div>
-        <div class="info">
-          <div class="vname">운송장 반영 완료본</div>
-          <div class="vproduct">원본과 같은 "주문 내역" 형식 · 택배사/운송장번호만 채움</div>
-        </div>
-        <button class="dl-btn" id="mergeDlBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
-          다운로드
-        </button>
-      </div>
+      <div id="mergeOutputs"></div>
 
       <div class="foot-note">
         <details class="aux" id="mergeUnmatchedBox" data-kind="skip">
@@ -1883,7 +1873,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var mergeErrorBox = document.getElementById("mergeErrorBox");
   var mergeResults = document.getElementById("mergeResults");
 
-  var baseState = null; // { file, buffer }
+  var baseStates = []; // [{ file, buffer }]  (올웨이즈·TOGLE 여러 개 가능)
   var invoiceState = []; // [{ id, name, map, rowsFound, ok }]
   var invoiceSeq = 0;
 
@@ -1893,33 +1883,46 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   baseDropzone.addEventListener("drop", function (e) {
     e.preventDefault();
     baseDropzone.classList.remove("drag");
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadBaseFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length) loadBaseFiles(e.dataTransfer.files);
   });
   baseFileInput.addEventListener("change", function () {
-    if (baseFileInput.files && baseFileInput.files[0]) loadBaseFile(baseFileInput.files[0]);
+    if (baseFileInput.files && baseFileInput.files.length) loadBaseFiles(baseFileInput.files);
   });
   baseResetBtn.addEventListener("click", function () {
-    baseState = null;
+    baseStates = [];
     baseFileInput.value = "";
     baseFilebar.classList.remove("show");
     mergeResults.style.display = "none";
   });
 
-  function loadBaseFile(file) {
+  function loadBaseFiles(fileList) {
     mergeErrorBox.classList.remove("show");
-    var reader = new FileReader();
-    reader.onload = function () {
-      baseState = { file: file, buffer: reader.result };
-      baseFname.textContent = file.name;
-      baseFmeta.textContent = humanSize(file.size);
-      baseFilebar.classList.add("show");
-      runMergeIfReady();
-    };
-    reader.onerror = function () {
-      mergeErrorBox.textContent = "원본 파일을 읽을 수 없습니다.";
-      mergeErrorBox.classList.add("show");
-    };
-    reader.readAsArrayBuffer(file);
+    var files = Array.prototype.slice.call(fileList).filter(function (f) { return f && /\.xlsx$/i.test(f.name); });
+    if (!files.length) { mergeErrorBox.textContent = ".xlsx 파일을 올려주세요."; mergeErrorBox.classList.add("show"); return; }
+    baseStates = [];
+    var loaded = new Array(files.length);
+    var done = 0, errored = false;
+    files.forEach(function (file, idx) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        loaded[idx] = { file: file, buffer: reader.result };
+        done++;
+        if (done === files.length && !errored) {
+          baseStates = loaded;
+          baseFname.textContent = files.length === 1 ? files[0].name : (files[0].name + " 외 " + (files.length - 1) + "개");
+          var totalSize = files.reduce(function (s, f) { return s + f.size; }, 0);
+          baseFmeta.textContent = humanSize(totalSize) + " · " + files.length + "개 파일";
+          baseFilebar.classList.add("show");
+          runMergeIfReady();
+        }
+      };
+      reader.onerror = function () {
+        if (errored) return; errored = true;
+        mergeErrorBox.textContent = "원본 파일을 읽을 수 없습니다(" + file.name + ").";
+        mergeErrorBox.classList.add("show");
+      };
+      reader.readAsArrayBuffer(file);
+    });
   }
 
   invoiceDropzone.addEventListener("click", function () { invoiceFileInput.click(); });
@@ -1990,16 +1993,12 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
 
   function runMergeIfReady() {
-    if (!baseState) return;
+    if (!baseStates.length) return;
     var readyInvoices = invoiceState.filter(function (e) { return e.ok; });
     if (readyInvoices.length === 0) { mergeResults.style.display = "none"; return; }
 
     try {
-      var wb = XLSX.read(baseState.buffer, { type: "array", sheetStubs: true });
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var range = XLSX.utils.decode_range(ws["!ref"]);
-      var mc = detectMergeCols(ws); // 올웨이즈/TOGLE 열 자동 인식
-
+      // 송장 맵은 한 번만 합치고, used는 전체 실행 시작에 한 번만 리셋(여러 기준파일이 공유)
       var combinedPhone = {}, combinedName = {};
       readyInvoices.forEach(function (e) {
         Object.keys(e.phoneMap || {}).forEach(function (k) { (combinedPhone[k] = combinedPhone[k] || []).push.apply(combinedPhone[k], e.phoneMap[k]); });
@@ -2008,44 +2007,56 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       Object.keys(combinedPhone).forEach(function (k) { combinedPhone[k].forEach(function (x) { x.used = false; }); });
       Object.keys(combinedName).forEach(function (k) { combinedName[k].forEach(function (x) { x.used = false; }); });
 
-      var matched = 0;
-      var unmatched = [];
-      for (var r = range.s.r + 1; r <= range.e.r; r++) {
-        var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.PRODUCT_NAME })];
-        if (!nameCell || !nameCell.v) continue;
-        var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER_PHONE })];
-        var phone = normPhone(phoneCell && phoneCell.v);
-        var rowCat = categoryOf(nameCell.v);
-        var receiverCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER })];
-        var rname = receiverCell && receiverCell.v != null ? normName(receiverCell.v) : "";
-        var chosen = pickHit(phone ? combinedPhone[phone] : null, rowCat);
-        if (!chosen && rname) chosen = pickHit(combinedName[rname], rowCat);
-        if (chosen) {
-          chosen.used = true;
-          matched++;
-          setCell(ws, r, mc.TRACKING, chosen.tracking, "s");
-          var cr = chosen.courier;
-          if (rowCat === "honey") cr = "롯데택배"; // 례답 전용택배 = 롯데 (한진 오매칭 방지, 강제)
-          else if (!cr && rowCat === "peach") cr = "롯데택배";
-          cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
-          if (cr) setCell(ws, r, mc.COURIER, cr, "s");
-        } else {
-          unmatched.push({
-            name: (receiverCell && receiverCell.v) || "(이름 없음)",
-            phone: (phoneCell && phoneCell.v) || "",
-            product: nameCell.v
-          });
-        }
-      }
+      var outputs = [];
+      var totAll = 0, matchedAll = 0, unmatchedAll = [];
 
-      var outBuffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      renderMergeReport({
-        total: matched + unmatched.length,
-        matched: matched,
-        unmatched: unmatched,
-        buffer: outBuffer,
-        baseName: baseState.file.name
+      baseStates.forEach(function (bs) {
+        var wb = XLSX.read(bs.buffer, { type: "array", sheetStubs: true });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var range = XLSX.utils.decode_range(ws["!ref"]);
+        var mc = detectMergeCols(ws); // 올웨이즈/TOGLE 열 자동 인식
+        var matched = 0, unmatched = [];
+        for (var r = range.s.r + 1; r <= range.e.r; r++) {
+          var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.PRODUCT_NAME })];
+          if (!nameCell || !nameCell.v) continue;
+          var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER_PHONE })];
+          var phone = normPhone(phoneCell && phoneCell.v);
+          var rowCat = categoryOf(nameCell.v);
+          var receiverCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER })];
+          var rname = receiverCell && receiverCell.v != null ? normName(receiverCell.v) : "";
+          var chosen = pickHit(phone ? combinedPhone[phone] : null, rowCat);
+          if (!chosen && rname) chosen = pickHit(combinedName[rname], rowCat);
+          if (chosen) {
+            chosen.used = true;
+            matched++;
+            setCell(ws, r, mc.TRACKING, chosen.tracking, "s");
+            var cr = chosen.courier;
+            if (rowCat === "honey") cr = "롯데택배"; // 례답 전용택배 = 롯데 (한진 오매칭 방지, 강제)
+            else if (!cr && rowCat === "peach") cr = "롯데택배";
+            cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
+            if (cr) setCell(ws, r, mc.COURIER, cr, "s");
+          } else {
+            unmatched.push({
+              name: (receiverCell && receiverCell.v) || "(이름 없음)",
+              phone: (phoneCell && phoneCell.v) || "",
+              product: nameCell.v
+            });
+          }
+        }
+        var outBuffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+        outputs.push({
+          baseName: bs.file.name,
+          format: mc.format,
+          matched: matched,
+          unmatched: unmatched,
+          buffer: outBuffer
+        });
+        totAll += matched + unmatched.length;
+        matchedAll += matched;
+        unmatchedAll = unmatchedAll.concat(unmatched);
       });
+
+      renderMergeReport({ total: totAll, matched: matchedAll, unmatched: unmatchedAll, outputs: outputs });
     } catch (err) {
       mergeErrorBox.textContent = "합치는 중 오류가 발생했습니다: " + err.message;
       mergeErrorBox.classList.add("show");
@@ -2067,11 +2078,24 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         }).join("")
       : '<div class="aux-item"><span class="aux-name">없음</span></div>';
 
-    var dlBtn = document.getElementById("mergeDlBtn");
-    var newBtn = dlBtn.cloneNode(true);
-    dlBtn.parentNode.replaceChild(newBtn, dlBtn);
-    newBtn.addEventListener("click", function () {
-      triggerDownload(report.buffer, report.baseName.replace(/\.xlsx$/i, "") + "_운송장반영.xlsx");
+    // 기준파일별 다운로드 카드 생성
+    var container = document.getElementById("mergeOutputs");
+    container.innerHTML = "";
+    report.outputs.forEach(function (out) {
+      var card = document.createElement("div");
+      card.className = "vendor-card panel";
+      card.setAttribute("style", "--swatch:#3f6b34");
+      card.innerHTML =
+        '<div class="swatch">📮</div>' +
+        '<div class="info">' +
+          '<div class="vname">' + escapeHtml(out.baseName) + '</div>' +
+          '<div class="vproduct">' + out.format + ' 형식 · 매칭 ' + out.matched + '건' + (out.unmatched.length ? ' · 미매칭 ' + out.unmatched.length + '건' : '') + '</div>' +
+        '</div>' +
+        '<button class="dl-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>다운로드</button>';
+      card.querySelector(".dl-btn").addEventListener("click", function () {
+        triggerDownload(out.buffer, out.baseName.replace(/\.xlsx$/i, "") + "_운송장반영.xlsx");
+      });
+      container.appendChild(card);
     });
 
     mergeResults.style.display = "block";
