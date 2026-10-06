@@ -633,8 +633,8 @@
           </svg>
         </div>
         <div class="title">주문 내역 엑셀을 여기로 드래그하세요</div>
-        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b></div>
-        <input type="file" id="fileInput" accept=".xlsx" />
+        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> · 올웨이즈·TOGLE <b>여러 개 한번에</b> 가능</div>
+        <input type="file" id="fileInput" accept=".xlsx" multiple />
       </div>
       <div class="filebar" id="filebar">
         <div class="fname" id="fname"></div>
@@ -1373,7 +1373,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
 
   function process(arrayBuffer) {
-    var orders = loadOrders(arrayBuffer);
+    return processOrders(loadOrders(arrayBuffer));
+  }
+
+  // 여러 파일(올웨이즈 + TOGLE 등)을 각각 읽어 주문행을 합친 뒤 한 번에 분류
+  function processBuffers(arrayBuffers) {
+    var orders = [];
+    (arrayBuffers || []).forEach(function (buf) {
+      if (buf) orders = orders.concat(loadOrders(buf));
+    });
+    return processOrders(orders);
+  }
+
+  function processOrders(orders) {
     var buckets = { peach: [], carrot: [], pumpkin: [], potato: [], onion: [], tteok: [], honey: [] };
     var unmatched = {};
     var failed = {};
@@ -1561,44 +1573,67 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   dropzone.addEventListener("drop", function (e) {
     e.preventDefault();
     dropzone.classList.remove("drag");
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      handleFiles(e.dataTransfer.files);
     }
   });
   fileInput.addEventListener("change", function () {
-    if (fileInput.files && fileInput.files[0]) handleFile(fileInput.files[0]);
+    if (fileInput.files && fileInput.files.length) handleFiles(fileInput.files);
   });
 
-  function handleFile(file) {
+  // 여러 파일을 모두 읽어 합쳐서 한 번에 처리 (올웨이즈 + TOGLE 함께/따로 모두 OK)
+  function handleFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList).filter(function (f) {
+      return f && /\.xlsx$/i.test(f.name);
+    });
+    if (!files.length) {
+      errorBox.textContent = ".xlsx 파일을 올려주세요.";
+      errorBox.classList.add("show");
+      return;
+    }
     errorBox.classList.remove("show");
     results.classList.remove("show");
-    fname.textContent = file.name;
-    fmeta.textContent = humanSize(file.size);
+    fname.textContent = files.length === 1 ? files[0].name : (files[0].name + " 외 " + (files.length - 1) + "개");
+    var totalSize = files.reduce(function (s, f) { return s + f.size; }, 0);
+    fmeta.textContent = humanSize(totalSize) + " · " + files.length + "개 파일";
     filebar.classList.add("show");
     statusLine.style.display = "flex";
     statusText.textContent = "주문 내역을 분석하는 중…";
 
-    var reader = new FileReader();
-    reader.onload = function () {
+    var buffers = new Array(files.length);
+    var done = 0, errored = false;
+
+    files.forEach(function (file, idx) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        buffers[idx] = reader.result;
+        done++;
+        if (done === files.length && !errored) finishProcess();
+      };
+      reader.onerror = function () {
+        if (errored) return;
+        errored = true;
+        statusLine.style.display = "none";
+        errorBox.textContent = "파일을 읽을 수 없습니다(" + file.name + "). .xlsx 파일이 맞는지 확인해 주세요.";
+        errorBox.classList.add("show");
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    function finishProcess() {
       setTimeout(function () {
         try {
-          var report = process(reader.result);
+          var report = processBuffers(buffers);
           renderReport(report);
           statusLine.style.display = "none";
         } catch (err) {
           statusLine.style.display = "none";
           errorBox.textContent = "처리 중 오류가 발생했습니다: " + err.message +
-            " — 원본 \"주문 내역\" 시트의 컬럼 구성이 바뀌지 않았는지 확인해 주세요.";
+            " — \"주문 내역\"(올웨이즈) 또는 \"출고내역서\"(TOGLE) 시트의 컬럼 구성이 바뀌지 않았는지 확인해 주세요.";
           errorBox.classList.add("show");
         }
       }, 30);
-    };
-    reader.onerror = function () {
-      statusLine.style.display = "none";
-      errorBox.textContent = "파일을 읽을 수 없습니다. .xlsx 파일이 맞는지 확인해 주세요.";
-      errorBox.classList.add("show");
-    };
-    reader.readAsArrayBuffer(file);
+    }
   }
 
   function renderReport(report) {
