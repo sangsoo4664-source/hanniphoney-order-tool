@@ -1261,6 +1261,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (/모듬튀김/.test(t)) comps.push({ product: "모듬튀김A(12개)", qty: q });
     if (/어묵/.test(t) && !/어묵\s*미포함/.test(t)) comps.push({ product: "어묵50g*8팩", qty: q });
     if (/500g|대용량\s*소스/.test(t)) comps.push({ product: "대용량 소스 단품 달대장500g", qty: q });
+    if (comps.length === 0) { m = t.match(/(\d+)\s*팩/); if (m) comps.push({ product: "달대장230g", qty: parseInt(m[1], 10) * q }); } // "N팩, 230g" → 달대장230g × N
     return comps;
   }
 
@@ -1329,29 +1330,43 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var FILLERS = { peach: fillPeach, carrot: fillCarrot, pumpkin: fillPumpkin, potato: fillPotato, onion: fillOnion, tteok: fillTteok, honey: fillHoney };
 
+  // 주문 파일 형식 자동 인식 (올웨이즈 주문내역 / TOGLE 출고내역서)
+  function detectOrderCols(ws) {
+    var range = XLSX.utils.decode_range(ws["!ref"]);
+    var hr = range.s.r;
+    function hv(c) { var cell = ws[XLSX.utils.encode_cell({ r: hr, c: c })]; return cell && cell.v != null ? String(cell.v).trim() : ""; }
+    // TOGLE 출고내역서: 상품명=10, 옵션=12, 수량=14, 수령인=5, 주소=6, 우편번호=7, 수령인전화번호=8
+    if (hv(10) === "상품명" && hv(12) === "옵션") {
+      return { PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1, RECEIVER: 5, RECEIVER_PHONE: 8 };
+    }
+    return COL; // 기본: 올웨이즈 주문내역
+  }
+
   function loadOrders(arrayBuffer) {
     var wb = XLSX.read(arrayBuffer, { type: "array" });
     var ws = wb.Sheets[wb.SheetNames[0]];
     var range = XLSX.utils.decode_range(ws["!ref"]);
+    var cols = detectOrderCols(ws);
     var rows = [];
     for (var r = range.s.r + 1; r <= range.e.r; r++) {
       var get = (function (rr) {
         return function (c) {
+          if (c == null || c < 0) return undefined;
           var cell = ws[XLSX.utils.encode_cell({ r: rr, c: c })];
           return cell ? cell.v : undefined;
         };
       })(r);
-      var name = get(COL.PRODUCT_NAME);
+      var name = get(cols.PRODUCT_NAME);
       if (!name) continue;
       rows.push({
         name: String(name),
-        option: String(get(COL.OPTION) || ""),
-        qty: get(COL.QTY),
-        address: get(COL.ADDRESS),
-        zipcode: String(get(COL.ZIPCODE) || ""),
-        entrancePw: get(COL.ENTRANCE_PW),
-        receiver: get(COL.RECEIVER),
-        receiverPhone: String(get(COL.RECEIVER_PHONE) || "")
+        option: String(get(cols.OPTION) || ""),
+        qty: get(cols.QTY),
+        address: get(cols.ADDRESS),
+        zipcode: String(get(cols.ZIPCODE) || ""),
+        entrancePw: get(cols.ENTRANCE_PW),
+        receiver: get(cols.RECEIVER),
+        receiverPhone: String(get(cols.RECEIVER_PHONE) || "")
       });
     }
     return rows;
