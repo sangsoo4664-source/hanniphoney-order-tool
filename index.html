@@ -1381,6 +1381,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           ADDRESS: idx["배송지"], ZIPCODE: idx["우편번호"], ENTRANCE_PW: -1,
           RECEIVER: idx["수령인명"], RECEIVER_PHONE: idx["수령인 연락처"],
           COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: idx["송장번호"],
+          STATUS: (idx["주문상태"] != null ? idx["주문상태"] : -1), STATUS_VALUE: "배송중",
           dataStart: ds, format: "토스"
         };
       }
@@ -1389,6 +1390,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         return {
           PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1,
           RECEIVER: 5, RECEIVER_PHONE: 8, COURIER: 18, TRACKING: 19,
+          STATUS: -1, STATUS_VALUE: "",
           dataStart: hr + 1, format: "TOGLE"
         };
       }
@@ -1399,6 +1401,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       ADDRESS: COL.ADDRESS, ZIPCODE: COL.ZIPCODE, ENTRANCE_PW: COL.ENTRANCE_PW,
       RECEIVER: COL.RECEIVER, RECEIVER_PHONE: COL.RECEIVER_PHONE,
       COURIER: ORDER_COURIER_COL, TRACKING: ORDER_TRACKING_COL,
+      STATUS: -1, STATUS_VALUE: "",
       dataStart: range.s.r + 1, format: "올웨이즈"
     };
   }
@@ -1773,7 +1776,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   // 합치기 기준파일 형식별 열 위치 (올웨이즈 / TOGLE / 토스 자동 인식)
   function detectMergeCols(ws) {
     var c = detectOrderCols(ws);
-    return { PRODUCT_NAME: c.PRODUCT_NAME, RECEIVER: c.RECEIVER, RECEIVER_PHONE: c.RECEIVER_PHONE, COURIER: c.COURIER, TRACKING: c.TRACKING, dataStart: c.dataStart, format: c.format };
+    return { PRODUCT_NAME: c.PRODUCT_NAME, RECEIVER: c.RECEIVER, RECEIVER_PHONE: c.RECEIVER_PHONE, COURIER: c.COURIER, TRACKING: c.TRACKING, STATUS: (c.STATUS != null ? c.STATUS : -1), STATUS_VALUE: (c.STATUS_VALUE || ""), dataStart: c.dataStart, format: c.format };
   }
 
   function normPhone(v) {
@@ -2061,6 +2064,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             else if (!cr && rowCat === "peach") cr = "롯데택배";
             cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
             if (cr) setCell(ws, r, mc.COURIER, cr, "s");
+            // 토스: 송장 채운 행은 주문상태를 "배송중"으로 변경해야 업로드됨
+            if (mc.STATUS != null && mc.STATUS >= 0 && mc.STATUS_VALUE) setCell(ws, r, mc.STATUS, mc.STATUS_VALUE, "s");
           } else {
             unmatched.push({
               name: (receiverCell && receiverCell.v) || "(이름 없음)",
