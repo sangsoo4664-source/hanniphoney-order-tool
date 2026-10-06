@@ -704,7 +704,7 @@
           </svg>
         </div>
         <div class="title">운송장을 채워 넣을 주문 내역 원본을 올려주세요</div>
-        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> 1개</div>
+        <div class="sub">또는 클릭해서 파일 선택 · <b>.xlsx</b> 1개 · 올웨이즈·TOGLE 자동 인식</div>
         <input type="file" id="baseFileInput" accept=".xlsx" />
       </div>
       <div class="filebar" id="baseFilebar">
@@ -1751,6 +1751,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var ORDER_COURIER_COL = 21; // V 택배사
   var ORDER_TRACKING_COL = 22; // W 운송장번호
 
+  // 합치기 기준파일 형식별 열 위치 (올웨이즈 / TOGLE 자동 인식)
+  function detectMergeCols(ws) {
+    var base = detectOrderCols(ws);
+    if (base.PRODUCT_NAME === 10) { // TOGLE 출고내역서: 택배사코드=18(S), 송장번호=19(T)
+      return { PRODUCT_NAME: 10, RECEIVER: 5, RECEIVER_PHONE: 8, COURIER: 18, TRACKING: 19, format: "TOGLE" };
+    }
+    return { PRODUCT_NAME: COL.PRODUCT_NAME, RECEIVER: COL.RECEIVER, RECEIVER_PHONE: COL.RECEIVER_PHONE, COURIER: ORDER_COURIER_COL, TRACKING: ORDER_TRACKING_COL, format: "올웨이즈" };
+  }
+
   function normPhone(v) {
     return String(v == null ? "" : v).replace(/\D/g, "");
   }
@@ -1989,6 +1998,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       var wb = XLSX.read(baseState.buffer, { type: "array", sheetStubs: true });
       var ws = wb.Sheets[wb.SheetNames[0]];
       var range = XLSX.utils.decode_range(ws["!ref"]);
+      var mc = detectMergeCols(ws); // 올웨이즈/TOGLE 열 자동 인식
 
       var combinedPhone = {}, combinedName = {};
       readyInvoices.forEach(function (e) {
@@ -2001,24 +2011,24 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       var matched = 0;
       var unmatched = [];
       for (var r = range.s.r + 1; r <= range.e.r; r++) {
-        var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: COL.PRODUCT_NAME })];
+        var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.PRODUCT_NAME })];
         if (!nameCell || !nameCell.v) continue;
-        var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: COL.RECEIVER_PHONE })];
+        var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER_PHONE })];
         var phone = normPhone(phoneCell && phoneCell.v);
         var rowCat = categoryOf(nameCell.v);
-        var receiverCell = ws[XLSX.utils.encode_cell({ r: r, c: COL.RECEIVER })];
+        var receiverCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER })];
         var rname = receiverCell && receiverCell.v != null ? normName(receiverCell.v) : "";
         var chosen = pickHit(phone ? combinedPhone[phone] : null, rowCat);
         if (!chosen && rname) chosen = pickHit(combinedName[rname], rowCat);
         if (chosen) {
           chosen.used = true;
           matched++;
-          setCell(ws, r, ORDER_TRACKING_COL, chosen.tracking, "s");
+          setCell(ws, r, mc.TRACKING, chosen.tracking, "s");
           var cr = chosen.courier;
           if (rowCat === "honey") cr = "롯데택배"; // 례답 전용택배 = 롯데 (한진 오매칭 방지, 강제)
           else if (!cr && rowCat === "peach") cr = "롯데택배";
           cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
-          if (cr) setCell(ws, r, ORDER_COURIER_COL, cr, "s");
+          if (cr) setCell(ws, r, mc.COURIER, cr, "s");
         } else {
           unmatched.push({
             name: (receiverCell && receiverCell.v) || "(이름 없음)",
