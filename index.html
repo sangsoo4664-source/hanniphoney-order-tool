@@ -1187,17 +1187,18 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         head.indexOf("천연4종세트") !== -1 || head.indexOf("꿀보자기세트") !== -1) {
       return { product: buildHoneyName(option), option: "" };
     }
-    // 단품 꿀스틱: 상품명=꿀 종류, 옵션=수량/중량
+    // 올웨이즈 단품(옵션에 "N포")은 원래대로: 상품명=옵션 전체(예 "국내산 사양벌꿀 30포"), 옵션칸 비움
+    if (/\d+\s*포/.test(detail)) {
+      return { product: buildHoneyName(option), option: "" };
+    }
+    // TOGLE/토스 단품(옵션 "N개, Ng"): 상품명=꿀 종류, 옵션=수량/중량
     var type = honeyType(name + " " + detail);
     if (type) {
-      var cnt;
-      var mPo = detail.match(/(\d+)\s*포/);
-      if (mPo) cnt = mPo[1] + "포";               // 올웨이즈: N포
-      else cnt = String(detail)
+      var cnt = String(detail)
         .replace(/[❤♥♡][^❤♥♡]*[❤♥♡]/g, " ")
         .replace(/\[[^\]]*\]/g, " ").replace(/[★☆]/g, " ")
         .replace(/BEST|최저가|인기|추천/g, " ").replace(/국내산|국산|천연/g, " ")
-        .replace(/\s+/g, " ").trim();             // TOGLE: "90개, 10g"
+        .replace(/\s+/g, " ").trim();
       return { product: type, option: cnt };
     }
     return { product: buildHoneyName(option), option: "" };
