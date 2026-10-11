@@ -1037,12 +1037,18 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return "햇 배 선물세트 " + (w != null ? w : "") + "kg " + size + (count ? " (" + count + ")" : "") + bojagi;
   }
 
-  // 제주 노지감귤: 옵션(3kg, 1박스, 로얄과) → 몬딱 상품명
+  // 제주 노지감귤: 옵션(3kg, 1박스, 로얄과) → 몬딱 상품명 "노지감귤 / {크기 등급} / {중량}kg"
+  // 등급 표기는 몬딱 목록 기준(중량별로 다름). 로얄과=2S~S, 소과=3S~2S (올웨이즈 옵션 기준)
+  var NOJI_GAMGYUL = {
+    "로얄과": { 1: "로얄과 S-M", 2: "로얄과 2S-S", 3: "로얄과 2S-S", 5: "로얄과 2S-S", 10: "로얄과" },
+    "소과": { 2: "소과 3S-2S", 3: "소과 3S-2S", 5: "소과 3S-2S", 10: "소과 3S-2S" }
+  };
   function buildNojiGamgyulName(optionText) {
     var t = String(optionText || "");
     var size = t.indexOf("로얄과") !== -1 ? "로얄과" : (t.indexOf("소과") !== -1 ? "소과" : "");
     var w = extractWeightKg(t);
-    return "[박스포함] " + (size ? size + " " : "") + "노지감귤 " + (w != null ? w : "") + "kg";
+    var label = (NOJI_GAMGYUL[size] && NOJI_GAMGYUL[size][w]) || size;
+    return "노지감귤 / " + label + " / " + (w != null ? w : "") + "kg";
   }
 
   function fillPumpkin(rows) {
