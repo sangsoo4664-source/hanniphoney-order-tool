@@ -1037,6 +1037,14 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return "햇 배 선물세트 " + (w != null ? w : "") + "kg " + size + (count ? " (" + count + ")" : "") + bojagi;
   }
 
+  // 제주 노지감귤: 옵션(3kg, 1박스, 로얄과) → 몬딱 상품명
+  function buildNojiGamgyulName(optionText) {
+    var t = String(optionText || "");
+    var size = t.indexOf("로얄과") !== -1 ? "로얄과" : (t.indexOf("소과") !== -1 ? "소과" : "");
+    var w = extractWeightKg(t);
+    return "[박스포함] " + (size ? size + " " : "") + "노지감귤 " + (w != null ? w : "") + "kg";
+  }
+
   function fillPumpkin(rows) {
     var wb = loadTemplate("pumpkin");
     var ws = wb.Sheets["sheet001"];
@@ -1044,6 +1052,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     rows.forEach(function (row) {
       var name;
       if (row.name.indexOf("청귤") !== -1 || row.name.indexOf("풋귤") !== -1) name = buildChunggyulName(row.option);
+      else if (row.name.indexOf("노지") !== -1 && row.name.indexOf("감귤") !== -1) name = buildNojiGamgyulName(row.option);
       else if (row.name.indexOf("감귤") !== -1) name = buildGamgyulName(row.option);
       else if (row.name.indexOf("샤인머스캣") !== -1 || row.name.indexOf("샤인") !== -1) name = buildShineName(row.option);
       else if (row.name.indexOf("사과") !== -1) name = buildAppleName(row.option);
@@ -1386,7 +1395,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           dataStart: ds, format: "토스"
         };
       }
-      // TOGLE 출고내역서: 상품명=10, 옵션=12
+      // TOGLE 출고내역서(신형): 상품이름 + 옵션이름 + 수취인이름
+      if (idx["상품이름"] != null && idx["옵션이름"] != null && idx["수취인이름"] != null) {
+        return {
+          PRODUCT_NAME: idx["상품이름"], OPTION: idx["옵션이름"],
+          QTY: (idx["상품수량"] != null ? idx["상품수량"] : idx["수량"]),
+          ADDRESS: idx["수취인주소"], ZIPCODE: idx["수취인우편번호"], ENTRANCE_PW: -1,
+          RECEIVER: idx["수취인이름"], RECEIVER_PHONE: (idx["수취인전화번호1"] != null ? idx["수취인전화번호1"] : idx["수취인전화번호"]),
+          COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: (idx["운송장번호"] != null ? idx["운송장번호"] : idx["송장번호"]),
+          STATUS: -1, STATUS_VALUE: "",
+          dataStart: hr + 1, format: "TOGLE"
+        };
+      }
+      // TOGLE 출고내역서(구형): 상품명=10, 옵션=12
       if (idx["상품명"] === 10 && idx["옵션"] === 12) {
         return {
           PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1,
