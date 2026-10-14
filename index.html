@@ -1821,8 +1821,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   // ② 운송장번호 합치기
   // ==================================================================
 
-  var ORDER_COURIER_COL = 21; // V 택배사
+  var ORDER_COURIER_COL = 20; // U 택배사 (col21=주문시점이므로 20이 맞음)
   var ORDER_TRACKING_COL = 22; // W 운송장번호
+
+  // 업체별 택배사 (상품명→업체 분류 기준으로 강제). 바뀌면 여기만 수정.
+  var VENDOR_COURIER = {
+    honey: "롯데택배",      // 례답
+    onion: "CJ대한통운",    // 마니팜
+    pumpkin: "CJ대한통운",  // 몬딱제주
+    carrot: "한진택배",     // 캄므유통
+    potato: "한진택배",     // 캄므유통(감자)
+    tteok: "CJ대한통운",    // 신대장
+    peach: "롯데택배"       // 진과(잔존 시)
+  };
 
   // 합치기 기준파일 형식별 열 위치 (올웨이즈 / TOGLE / 토스 자동 인식)
   function detectMergeCols(ws) {
@@ -2110,10 +2121,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             chosen.used = true;
             matched++;
             setCell(ws, r, mc.TRACKING, chosen.tracking, "s");
-            var cr = chosen.courier;
-            if (rowCat === "honey") cr = "롯데택배"; // 례답 전용택배 = 롯데 (한진 오매칭 방지, 강제)
-            else if (!cr && rowCat === "peach") cr = "롯데택배";
-            cr = String(cr || "").replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
+            // 업체별 택배사 강제(상품명→업체 분류). 없으면 송장파일 택배사 사용
+            var vendor = classify(nameCell.v);
+            var cr = (vendor && VENDOR_COURIER[vendor]) || chosen.courier || "";
+            cr = String(cr).replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
             if (cr) setCell(ws, r, mc.COURIER, cr, "s");
             // 토스: 송장 채운 행은 주문상태를 "배송중"으로 변경해야 업로드됨
             if (mc.STATUS != null && mc.STATUS >= 0 && mc.STATUS_VALUE) setCell(ws, r, mc.STATUS, mc.STATUS_VALUE, "s");
