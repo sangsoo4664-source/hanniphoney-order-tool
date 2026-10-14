@@ -1893,7 +1893,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         if (isSenderLabel(v)) continue;
 
         if (RECEIVER_PHONE_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) {
-          if (cols.phonePriority < 2) { cols.phone = c; cols.phonePriority = 2; score += 2; }
+          // 연락처2/전화2는 보조번호(빈칸 많음) → 1차 연락처보다 낮은 우선순위
+          var _pr = /(?:연락처|전화(?:번호)?)\s*2/.test(v) ? 2 : 3;
+          if (cols.phonePriority < _pr) { cols.phone = c; cols.phonePriority = _pr; score += 2; }
         } else if (cols.phonePriority < 1 && GENERIC_PHONE_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) {
           cols.phone = c; cols.phonePriority = 1; score += 1;
         }
