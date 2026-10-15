@@ -1646,6 +1646,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     dlToast._tid = setTimeout(function () { t.style.display = "none"; }, 6000);
   }
 
+  // 파일명 끝(.xlsx 앞)에 오늘 날짜(YYYY-MM-DD) 삽입
+  function withToday(filename) {
+    var d = new Date();
+    var s = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    return String(filename).replace(/\.xlsx$/i, "") + "_" + s + ".xlsx";
+  }
+
   function triggerDownload(buffer, filename, mime) {
     // [v3] claude.ai 아티팩트 뷰어에서는 일반 다운로드가 막히므로 전용 저장 기능을 사용한다.
     try {
@@ -1784,7 +1791,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       var btn = card.querySelector(".dl-btn");
       if (out.rows.length > 0) {
         btn.addEventListener("click", function () {
-          triggerDownload(out.buffer, meta.file);
+          triggerDownload(out.buffer, withToday(meta.file));
         });
       }
       vendorList.appendChild(card);
