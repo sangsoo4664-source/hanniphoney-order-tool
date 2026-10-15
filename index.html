@@ -2180,10 +2180,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             chosen.used = true;
             matched++;
             setCell(ws, r, mc.TRACKING, chosen.tracking, "s");
-            // 업체별 택배사 강제(상품명→업체 분류). 없으면 송장파일 택배사 사용
+            // 택배사는 송장파일의 실제 값을 우선(운송장번호와 반드시 일치해야 함).
+            // 송장에 택배사가 비어있을 때만 업체 기본값(VENDOR_COURIER)으로 채움.
             var vendor = classify(nameCell.v);
-            var cr = (vendor && VENDOR_COURIER[vendor]) || chosen.courier || "";
-            cr = String(cr).replace(/\s+/g, ""); // 택배사 공백 제거 (예: "CJ 대한통운"→"CJ대한통운")
+            var cr = String(chosen.courier || "").replace(/\s+/g, ""); // "CJ 대한통운"→"CJ대한통운"
+            if (!cr) cr = (vendor && VENDOR_COURIER[vendor]) || "";
             if (cr) setCell(ws, r, mc.COURIER, cr, "s");
             // 토스: 송장 채운 행은 주문상태를 "배송중"으로 변경해야 업로드됨
             if (mc.STATUS != null && mc.STATUS >= 0 && mc.STATUS_VALUE) setCell(ws, r, mc.STATUS, mc.STATUS_VALUE, "s");
