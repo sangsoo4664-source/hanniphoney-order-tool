@@ -1446,12 +1446,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         };
       }
     }
-    // 기본: 올웨이즈 주문내역
+    // 기본: 올웨이즈 주문내역 — 택배사/운송장번호 등은 헤더 이름으로 찾음(올웨이즈가 열 순서를 바꾸는 경우 있음)
+    var oIdx = {};
+    for (var oc = range.s.c; oc <= range.e.c; oc++) { var ov = cellStr(range.s.r, oc); if (ov && !(ov in oIdx)) oIdx[ov] = oc; }
+    function oCol(name, fb) { return oIdx[name] != null ? oIdx[name] : fb; }
     return {
-      PRODUCT_NAME: COL.PRODUCT_NAME, OPTION: COL.OPTION, QTY: COL.QTY,
-      ADDRESS: COL.ADDRESS, ZIPCODE: COL.ZIPCODE, ENTRANCE_PW: COL.ENTRANCE_PW,
-      RECEIVER: COL.RECEIVER, RECEIVER_PHONE: COL.RECEIVER_PHONE,
-      COURIER: ORDER_COURIER_COL, TRACKING: ORDER_TRACKING_COL,
+      PRODUCT_NAME: oCol("상품명", COL.PRODUCT_NAME), OPTION: oCol("옵션", COL.OPTION), QTY: oCol("수량", COL.QTY),
+      ADDRESS: oCol("주소", COL.ADDRESS), ZIPCODE: oCol("우편번호", COL.ZIPCODE), ENTRANCE_PW: oCol("공동현관 비밀번호", COL.ENTRANCE_PW),
+      RECEIVER: oCol("수령인", COL.RECEIVER), RECEIVER_PHONE: oCol("수령인 연락처", COL.RECEIVER_PHONE),
+      COURIER: oCol("택배사", ORDER_COURIER_COL), TRACKING: oCol("운송장번호", ORDER_TRACKING_COL),
       STATUS: -1, STATUS_VALUE: "",
       dataStart: range.s.r + 1, format: "올웨이즈"
     };
