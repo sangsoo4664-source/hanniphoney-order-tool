@@ -2196,6 +2196,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             });
           }
         }
+        // 토스: 맨 윗행 안내박스(병합셀)가 !ref 밖(A2 시작)이면 포함시켜 원본 양식 그대로 유지
+        if (mc.format === "토스") {
+          var oref = XLSX.utils.decode_range(ws["!ref"]);
+          if (oref.s.r > 0) { oref.s.r = 0; ws["!ref"] = XLSX.utils.encode_range(oref); }
+        }
         var outBuffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
         outputs.push({
           baseName: bs.file.name,
