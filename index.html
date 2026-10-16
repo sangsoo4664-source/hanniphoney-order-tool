@@ -2251,10 +2251,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         '</div>' +
         '<button class="dl-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>다운로드</button>';
       card.querySelector(".dl-btn").addEventListener("click", function () {
-        // 토스 기준파일은 "토스_오늘날짜.xlsx"로, 그 외는 "원본명_운송장반영.xlsx"
-        var dlName = out.format === "토스"
-          ? withToday("토스")
-          : out.baseName.replace(/\.xlsx$/i, "") + "_운송장반영.xlsx";
+        // 기준파일 형식에 맞춰 파일명: 토스→"토스_날짜", 토글→"토글_날짜", 그 외→"원본명_운송장반영_날짜"
+        var dlName;
+        if (out.format === "토스") dlName = withToday("토스");
+        else if (out.format === "TOGLE") dlName = withToday("토글");
+        else dlName = withToday(out.baseName.replace(/\.xlsx$/i, "") + "_운송장반영");
         triggerDownload(out.buffer, dlName);
       });
       container.appendChild(card);
