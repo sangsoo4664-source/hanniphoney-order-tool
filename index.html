@@ -822,9 +822,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
     carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
-    pumpkin: { name: "몬딱제주", product: "미니밤호박·청귤·감귤·빨간사과·샤인머스캣·햇배선물세트", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
+    pumpkin: { name: "몬딱제주", product: "미니밤호박·청귤·감귤(노지 제외)·빨간사과·샤인머스캣·햇배선물세트", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
     potato: { name: "캄므유통", product: "수미감자", swatch: "#b08a3a", emoji: "🥔", file: "캄므유통_감자_발주.xlsx" },
-    onion: { name: "마니팜", product: "국내산 햇양파", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
+    onion: { name: "마니팜", product: "국내산 햇양파·제주 타이벡감귤·제주 노지감귤", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
     tteok: { name: "신대장떡볶이", product: "떡볶이 밀키트", swatch: "#c0392b", emoji: "🌶️", file: "신대장_떡볶이_발주.xlsx" },
     honey: { name: "례답", product: "천연 벌꿀스틱", swatch: "#caa33a", emoji: "🍯", file: "례답_벌꿀스틱_발주.xlsx" }
   };
@@ -893,6 +893,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("당근") !== -1) return "carrot";
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
     if (name.indexOf("청귤") !== -1 || name.indexOf("풋귤") !== -1) return "pumpkin";
+    if (name.indexOf("노지") !== -1 && name.indexOf("감귤") !== -1) return "onion"; // 노지감귤 → 마니팜 (품질 테스트, 감귤 체크보다 먼저)
     if (name.indexOf("감귤") !== -1) return "pumpkin";
     if (name.indexOf("샤인머스캣") !== -1 || name.indexOf("샤인") !== -1) return "pumpkin";
     if (name.indexOf("사과") !== -1) return "pumpkin"; // 제주 청귤 → 몬딱제주
@@ -1272,9 +1273,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var ws = wb.Sheets["발주"];
     var r = 1;
     rows.forEach(function (row) {
-      var oname = (row.name.indexOf("타이벡") !== -1 || row.name.indexOf("감귤") !== -1)
-        ? "제주 타이벡감귤 " + cleanOption(row.option)   // 타이벡감귤 → 마니팜
-        : "국내산 햇양파 " + cleanOption(row.option);
+      var oname;
+      if (row.name.indexOf("노지") !== -1 && row.name.indexOf("감귤") !== -1)
+        oname = "제주 노지감귤 " + cleanOption(row.option);    // 노지감귤 → 마니팜 (품질 테스트)
+      else if (row.name.indexOf("타이벡") !== -1 || row.name.indexOf("감귤") !== -1)
+        oname = "제주 타이벡감귤 " + cleanOption(row.option);   // 타이벡감귤 → 마니팜
+      else
+        oname = "국내산 햇양파 " + cleanOption(row.option);
       setCell(ws, r, 1, oname);
       setCell(ws, r, 2, row.qty, "n");
       setCell(ws, r, 3, SENDER_NAME);
