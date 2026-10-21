@@ -885,7 +885,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return "제주 미니밤호박 정품 실중량 " + w + "kg";
   }
 
-  function classify(name) {
+  function classify(name, opt) {
     if (name.indexOf("시나노") !== -1) return "carrot"; // 황금 시나노골드(사과) → 캄므 (사과 체크보다 먼저)
     if (name.indexOf("타이벡") !== -1) return "onion"; // 타이벡감귤 → 마니팜 (감귤 체크보다 먼저)
     if (name.indexOf("고구마") !== -1) return "carrot"; // 여주고구마 → 캄므
@@ -893,7 +893,12 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("당근") !== -1) return "carrot";
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
     if (name.indexOf("청귤") !== -1 || name.indexOf("풋귤") !== -1) return "pumpkin";
-    if (name.indexOf("노지") !== -1 && name.indexOf("감귤") !== -1) return "onion"; // 노지감귤 → 마니팜 (품질 테스트, 감귤 체크보다 먼저)
+    if (name.indexOf("노지") !== -1 && name.indexOf("감귤") !== -1) {
+      // 노지감귤 → 마니팜(품질 테스트). 단 '중대과 10kg' 옵션만 몬딱제주(10kg 가격 우위)
+      var njt = name + " " + String(opt || "");
+      if (njt.indexOf("중대과") !== -1 && /10\s*kg/i.test(njt)) return "pumpkin";
+      return "onion";
+    }
     if (name.indexOf("감귤") !== -1) return "pumpkin";
     if (name.indexOf("샤인머스캣") !== -1 || name.indexOf("샤인") !== -1) return "pumpkin";
     if (name.indexOf("사과") !== -1) return "pumpkin"; // 제주 청귤 → 몬딱제주
@@ -1073,7 +1078,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   };
   function buildNojiGamgyulName(optionText) {
     var t = String(optionText || "");
-    var size = t.indexOf("로얄과") !== -1 ? "로얄과" : (t.indexOf("소과") !== -1 ? "소과" : "");
+    var size = t.indexOf("중대과") !== -1 ? "중대과" : (t.indexOf("로얄과") !== -1 ? "로얄과" : (t.indexOf("소과") !== -1 ? "소과" : ""));
     var w = extractWeightKg(t);
     var label = (NOJI_GAMGYUL[size] && NOJI_GAMGYUL[size][w]) || size;
     return "노지감귤 / " + label + " / " + (w != null ? w : "") + "kg";
@@ -1541,7 +1546,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var failed = {};
 
     orders.forEach(function (row) {
-      var cat = classify(row.name);
+      var cat = classify(row.name, row.option);
       if (!cat) {
         unmatched[row.name] = (unmatched[row.name] || 0) + 1;
         return;
