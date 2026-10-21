@@ -894,9 +894,12 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
     if (name.indexOf("청귤") !== -1 || name.indexOf("풋귤") !== -1) return "pumpkin";
     if (name.indexOf("노지") !== -1 && name.indexOf("감귤") !== -1) {
-      // 노지감귤 → 마니팜(품질 테스트). 단 '중대과 10kg' 옵션만 몬딱제주(10kg 가격 우위)
+      // 노지감귤 → 마니팜(품질 테스트). 단 마니팜에 없는 옵션은 몬딱제주로:
+      //  · 2kg (마니팜에 2kg 옵션 없음)   · 중대과 10kg (10kg 가격 우위)
       var njt = name + " " + String(opt || "");
-      if (njt.indexOf("중대과") !== -1 && /10\s*kg/i.test(njt)) return "pumpkin";
+      var njw = extractWeightKg(njt);
+      if (njw === 2) return "pumpkin";
+      if (njt.indexOf("중대과") !== -1 && njw === 10) return "pumpkin";
       return "onion";
     }
     if (name.indexOf("감귤") !== -1) return "pumpkin";
@@ -1078,7 +1081,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   };
   function buildNojiGamgyulName(optionText) {
     var t = String(optionText || "");
-    var size = t.indexOf("중대과") !== -1 ? "중대과" : (t.indexOf("로얄과") !== -1 ? "로얄과" : (t.indexOf("소과") !== -1 ? "소과" : ""));
+    var size = t.indexOf("중대과") !== -1 ? "중대과"
+             : t.indexOf("중과") !== -1 ? "중과"
+             : t.indexOf("로얄과") !== -1 ? "로얄과"
+             : t.indexOf("소과") !== -1 ? "소과"
+             : t.indexOf("혼합") !== -1 ? "못난이 혼합과" : "";
     var w = extractWeightKg(t);
     var label = (NOJI_GAMGYUL[size] && NOJI_GAMGYUL[size][w]) || size;
     return "노지감귤 / " + label + " / " + (w != null ? w : "") + "kg";
