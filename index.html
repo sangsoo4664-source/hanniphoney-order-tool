@@ -824,7 +824,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·홍가리비", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     pumpkin: { name: "몬딱제주", product: "미니밤호박·청귤·감귤(노지 제외)·빨간사과·샤인머스캣·햇배선물세트", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
     potato: { name: "캄므유통", product: "수미감자", swatch: "#b08a3a", emoji: "🥔", file: "캄므유통_감자_발주.xlsx" },
-    onion: { name: "마니팜", product: "국내산 햇양파·스테비아농법 타이벡감귤·제주 노지감귤", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
+    onion: { name: "마니팜", product: "국내산 햇양파·조생 스테비아농법 타이벡감귤·조생 GAP 서귀포감귤", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_양파_발주.xlsx" },
     tteok: { name: "신대장떡볶이", product: "떡볶이 밀키트", swatch: "#c0392b", emoji: "🌶️", file: "신대장_떡볶이_발주.xlsx" },
     honey: { name: "례답", product: "천연 벌꿀스틱", swatch: "#caa33a", emoji: "🍯", file: "례답_벌꿀스틱_발주.xlsx" }
   };
@@ -1291,9 +1291,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     rows.forEach(function (row) {
       var oname;
       if (row.name.indexOf("노지") !== -1 && row.name.indexOf("감귤") !== -1)
-        oname = "제주 노지감귤 " + cleanOption(row.option);    // 노지감귤 → 마니팜 (품질 테스트)
+        oname = "조생 GAP 서귀포감귤 " + cleanOption(row.option);    // 노지감귤 → 마니팜 '조생 GAP 서귀포감귤'
       else if (row.name.indexOf("타이벡") !== -1 || row.name.indexOf("감귤") !== -1)
-        oname = "스테비아농법 타이벡감귤 (극조생) " + cleanOption(row.option);   // 타이벡감귤 → 마니팜 (스테비아 신상품 연동)
+        oname = "조생 스테비아농법 타이벡감귤 " + cleanOption(row.option);   // 타이벡감귤 → 마니팜 '조생 스테비아농법 타이벡감귤'
       else
         oname = "국내산 햇양파 " + cleanOption(row.option);
       setCell(ws, r, 1, oname);
