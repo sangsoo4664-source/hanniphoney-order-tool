@@ -895,12 +895,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
     if (name.indexOf("청귤") !== -1 || name.indexOf("풋귤") !== -1) return "pumpkin";
     if (name.indexOf("노지") !== -1 && name.indexOf("감귤") !== -1) {
-      // 노지감귤 → 마니팜(품질 테스트). 단 마니팜에 없는 옵션은 몬딱제주로:
-      //  · 2kg (마니팜에 2kg 옵션 없음)   · 중대과 10kg (10kg 가격 우위)
+      // 노지감귤 → 마니팜(조생 GAP 서귀포감귤). 단 2kg만 몬딱제주(마니팜에 2kg 옵션 없음).
+      // 중대과 10kg 포함 그 외 중량은 모두 마니팜.
       var njt = name + " " + String(opt || "");
-      var njw = extractWeightKg(njt);
-      if (njw === 2) return "pumpkin";
-      if (njt.indexOf("중대과") !== -1 && njw === 10) return "pumpkin";
+      if (extractWeightKg(njt) === 2) return "pumpkin";
       return "onion";
     }
     if (name.indexOf("감귤") !== -1) return "pumpkin";
@@ -1011,8 +1009,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         var perKg = extractWeightKg(row.option);                        // 옵션 1건당 중량(1 또는 2 kg)
         if (perKg == null || !(perKg > 0)) perKg = 1;
         var packM = (String(row.option).match(/(\d+)\s*개/) || [])[1];   // 옵션에 'N개' 묶음 표기가 있으면 반영
-        var buyKg = perKg * (packM ? Number(packM) : 1) * (Number(row.qty) || 1); // 실제 구매 총 kg
-        qtyOut = buyKg + 1;                                             // +1kg 보너스 → 1kg 단위 발주 수량
+        var items = (packM ? Number(packM) : 1) * (Number(row.qty) || 1); // 구매 개수(박스 수)
+        var buyKg = perKg * items;                                      // 실제 구매 총 kg
+        qtyOut = items >= 2 ? buyKg + 1 : buyKg;                        // 2개 이상 구매 시에만 +1kg 보너스
       } else {
         var f = buildCarrotFields(row.option);
         pname = f[0];
