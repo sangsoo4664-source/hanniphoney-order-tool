@@ -1007,12 +1007,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         // 캄므는 1kg 단위만 판매 → 총 구매 kg로 환산 후 +1kg(보너스)로 발주
         pname = "홍가리비";
         popt = "1kg";
-        var perKg = extractWeightKg(row.option);                        // 옵션 1건당 중량(1 또는 2 kg)
+        // 홍보문구(☆2개 구매 시 총 5kG 배송☆)는 제거 후 옵션 중량만 읽음 (문구의 '개'·'kg' 오인 방지)
+        var optForKg = String(row.option).replace(/[☆★][^☆★]*[☆★]/g, " ");
+        var perKg = extractWeightKg(optForKg);                          // 옵션 중량(1 또는 2 kg)
         if (perKg == null || !(perKg > 0)) perKg = 1;
-        var packM = (String(row.option).match(/(\d+)\s*개/) || [])[1];   // 옵션에 'N개' 묶음 표기가 있으면 반영
-        var items = (packM ? Number(packM) : 1) * (Number(row.qty) || 1); // 구매 개수(박스 수)
-        var buyKg = perKg * items;                                      // 실제 구매 총 kg
-        qtyOut = items >= 2 ? buyKg + 1 : buyKg;                        // 2개 이상 구매 시에만 +1kg 보너스
+        var qn = Number(row.qty) || 1;                                  // 구매 수량(개) — 수량 칸에서만
+        var buyKg = perKg * qn;                                         // 실제 구매 총 kg
+        qtyOut = qn >= 2 ? buyKg + 1 : buyKg;                           // 2개 이상 구매 시에만 +1kg 보너스
       } else if (/김치|석박지|섞박지|깍두기|동치미/.test(row.name)) {
         // 김치류 → 캄므 '프리미엄 김치 [ 종류 ]'
         var kk = String(row.name) + " " + String(row.option);
