@@ -1009,11 +1009,14 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         popt = "1kg";
         // 홍보문구(☆2개 구매 시 총 5kG 배송☆)는 제거 후 옵션 중량만 읽음 (문구의 '개'·'kg' 오인 방지)
         var optForKg = String(row.option).replace(/[☆★][^☆★]*[☆★]/g, " ");
-        var perKg = extractWeightKg(optForKg);                          // 옵션 중량(1 또는 2 kg)
+        var perKg = extractWeightKg(optForKg);                          // 옵션 중량(1·2·10 kg)
         if (perKg == null || !(perKg > 0)) perKg = 1;
         var qn = Number(row.qty) || 1;                                  // 구매 수량(개) — 수량 칸에서만
         var buyKg = perKg * qn;                                         // 실제 구매 총 kg
-        qtyOut = qn >= 2 ? buyKg + 1 : buyKg;                           // 2개 이상 구매 시에만 +1kg 보너스
+        // '2개 구매시 총 Nkg' 행사문구가 붙은 옵션(1·2kg)만 2개 이상 구매 시 +1kg 보너스.
+        // 10kg 대가족패키지처럼 행사문구 없는 옵션은 보너스 없이 구매 kg 그대로.
+        var hasPromo = /구매\s*시?\s*총\s*\d+\s*kg/i.test(row.option);
+        qtyOut = (hasPromo && qn >= 2) ? buyKg + 1 : buyKg;
       } else if (/김치|석박지|섞박지|깍두기|동치미/.test(row.name)) {
         // 김치류 → 캄므 '프리미엄 김치 [ 종류 ]'
         var kk = String(row.name) + " " + String(row.option);
