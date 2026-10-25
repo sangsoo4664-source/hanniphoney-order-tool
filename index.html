@@ -981,7 +981,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var ws = wb.Sheets["기본양식"];
     var r = 1;
     rows.forEach(function (row) {
-      var pname, popt;
+      var pname, popt, qtyOut = row.qty;
       if (row.name.indexOf("감자") !== -1) {
         pname = "수미감자";
         popt = cleanOption(row.option);
@@ -1005,8 +1005,14 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         pname = gf[0];
         popt = gf[1];
       } else if (row.name.indexOf("가리비") !== -1) {
+        // 캄므는 1kg 단위만 판매 → 총 구매 kg로 환산 후 +1kg(보너스)로 발주
         pname = "홍가리비";
-        popt = cleanOption(row.option);
+        popt = "1kg";
+        var perKg = extractWeightKg(row.option);                        // 옵션 1건당 중량(1 또는 2 kg)
+        if (perKg == null || !(perKg > 0)) perKg = 1;
+        var packM = (String(row.option).match(/(\d+)\s*개/) || [])[1];   // 옵션에 'N개' 묶음 표기가 있으면 반영
+        var buyKg = perKg * (packM ? Number(packM) : 1) * (Number(row.qty) || 1); // 실제 구매 총 kg
+        qtyOut = buyKg + 1;                                             // +1kg 보너스 → 1kg 단위 발주 수량
       } else {
         var f = buildCarrotFields(row.option);
         pname = f[0];
@@ -1021,7 +1027,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 13, memo(row.entrancePw));
       setCell(ws, r, 14, pname);
       setCell(ws, r, 15, popt);
-      setCell(ws, r, 16, row.qty, "n");
+      setCell(ws, r, 16, qtyOut, "n");
       r++;
     });
     extendRef(ws, Math.max(r - 1, 1), 16);
