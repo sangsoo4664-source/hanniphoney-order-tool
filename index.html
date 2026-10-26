@@ -689,6 +689,13 @@
           </summary>
           <div class="aux-body" id="addrBody"></div>
         </details>
+        <details class="aux" id="phoneBox" data-kind="error" style="display:none">
+          <summary>
+            <span>⚠️ 성함·주소 같은데 전화번호 다른 주문 — 확인 필요</span>
+            <span class="badge mono" id="phoneBadge">0</span>
+          </summary>
+          <div class="aux-body" id="phoneBody"></div>
+        </details>
       </div>
 
       <p class="vendor-scope">
@@ -1635,13 +1642,35 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       });
     });
 
+    // 같은 성함+주소인데 전화번호가 다른 주문 감지 (동일인 중복주문/번호 불일치 확인용)
+    var phoneConflicts = [];
+    (function () {
+      var groups = {};
+      orders.forEach(function (row) {
+        var nm = normName(row.receiver || "");
+        var ad = String(row.address || "").replace(/\s+/g, "");
+        if (!nm || !ad) return;
+        var key = nm + "|" + ad;
+        (groups[key] = groups[key] || []).push({ receiver: row.receiver, address: row.address, phone: row.receiverPhone || "", nphone: normPhone(row.receiverPhone || "") });
+      });
+      Object.keys(groups).forEach(function (key) {
+        var list = groups[key];
+        var seen = {}, phones = [];
+        list.forEach(function (x) { if (x.nphone && !seen[x.nphone]) { seen[x.nphone] = 1; phones.push(x.phone); } });
+        if (phones.length >= 2) {
+          phoneConflicts.push({ receiver: list[0].receiver, address: list[0].address, phones: phones });
+        }
+      });
+    })();
+
     return {
       total: orders.length,
       matched: matchedCount,
       unmatched: unmatched,
       failed: failed,
       outputs: outputs,
-      addrWarnings: addrWarnings
+      addrWarnings: addrWarnings,
+      phoneConflicts: phoneConflicts
     };
   }
 
@@ -1923,6 +1952,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       }).join("");
     } else {
       addrBox.style.display = "none";
+    }
+
+    var phoneConflicts = report.phoneConflicts || [];
+    var phoneBox = document.getElementById("phoneBox");
+    if (phoneConflicts.length) {
+      phoneBox.style.display = "block";
+      phoneBox.open = true;
+      document.getElementById("phoneBadge").textContent = phoneConflicts.length;
+      document.getElementById("phoneBody").innerHTML = phoneConflicts.map(function (w) {
+        return '<div class="aux-item"><span class="aux-name">' + escapeHtml(String(w.receiver || "(이름 없음)")) + " · " + escapeHtml(String(w.address || "(주소 없음)")) + '</span><span class="aux-n mono">' + escapeHtml(w.phones.join(" / ")) + '</span></div>';
+      }).join("");
+    } else {
+      phoneBox.style.display = "none";
     }
 
     results.classList.add("show");
