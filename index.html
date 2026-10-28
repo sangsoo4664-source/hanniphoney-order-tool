@@ -667,6 +667,8 @@
 
       <div class="vendor-list" id="vendorList"></div>
 
+      <div class="vendor-scope" id="timeSummary" style="display:none"></div>
+
       <div class="foot-note">
         <details class="aux" id="unmatchedBox" data-kind="skip">
           <summary>
@@ -695,6 +697,13 @@
             <span class="badge mono" id="phoneBadge">0</span>
           </summary>
           <div class="aux-body" id="phoneBody"></div>
+        </details>
+        <details class="aux" id="lateBox" data-kind="error" style="display:none">
+          <summary>
+            <span>⏭ 오전 10시 마감 이후 접수 — 다음 회차로 확인</span>
+            <span class="badge mono" id="lateBadge">0</span>
+          </summary>
+          <div class="aux-body" id="lateBody"></div>
         </details>
       </div>
 
@@ -1477,6 +1486,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   function detectOrderCols(ws) {
     var range = XLSX.utils.decode_range(ws["!ref"]);
     function cellStr(r, c) { var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })]; return cell && cell.v != null ? String(cell.v).trim() : ""; }
+    function timeCol(map) { var ks = ["주문일시", "주문 시점", "주문시점", "주문시각", "결제일시", "결제일", "주문일", "주문날짜", "주문시간"]; for (var i = 0; i < ks.length; i++) { if (map[ks[i]] != null) return map[ks[i]]; } return -1; }
     // 헤더행 탐색: 처음 6행 안에서 "상품명"이 있는 행
     for (var hr = range.s.r; hr <= Math.min(range.s.r + 5, range.e.r); hr++) {
       var idx = {};
@@ -1493,6 +1503,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: idx["송장번호"],
           STATUS: (idx["주문상태"] != null ? idx["주문상태"] : -1), STATUS_VALUE: "배송중",
           ORDER_NO: (idx["주문번호"] != null ? idx["주문번호"] : -1),
+          ORDER_TIME: timeCol(idx),
           dataStart: ds, format: "토스"
         };
       }
@@ -1506,6 +1517,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: (idx["운송장번호"] != null ? idx["운송장번호"] : idx["송장번호"]),
           STATUS: -1, STATUS_VALUE: "",
           ORDER_NO: (idx["주문번호"] != null ? idx["주문번호"] : -1),
+          ORDER_TIME: timeCol(idx),
           dataStart: hr + 1, format: "TOGLE"
         };
       }
@@ -1516,6 +1528,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           RECEIVER: 5, RECEIVER_PHONE: 8, COURIER: 18, TRACKING: 19,
           STATUS: -1, STATUS_VALUE: "",
           ORDER_NO: (idx["주문번호"] != null ? idx["주문번호"] : -1),
+          ORDER_TIME: timeCol(idx),
           dataStart: hr + 1, format: "TOGLE"
         };
       }
@@ -1531,8 +1544,24 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       COURIER: oCol("택배사", ORDER_COURIER_COL), TRACKING: oCol("운송장번호", ORDER_TRACKING_COL),
       STATUS: -1, STATUS_VALUE: "",
       ORDER_NO: oCol("주문번호", -1),
+      ORDER_TIME: timeCol(oIdx),
       dataStart: range.s.r + 1, format: "올웨이즈"
     };
+  }
+
+  // 주문시각 파싱: 엑셀 일련번호(숫자)와 "YYYY-MM-DD HH:MM" 문자열 모두 처리 → 로컬 Date
+  function parseOrderTime(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number" && isFinite(v)) {
+      if (v < 1 || v > 80000) return null;             // 엑셀 날짜 일련번호 범위
+      var d = new Date((v - 25569) * 86400000);        // UTC 기준 변환
+      return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), Math.round(d.getUTCSeconds()));
+    }
+    var s = String(v);
+    var m = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})(?:[ T]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+    var t = Date.parse(s);
+    return isNaN(t) ? null : new Date(t);
   }
 
   function loadOrders(arrayBuffer) {
@@ -1559,7 +1588,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         zipcode: String(get(cols.ZIPCODE) || ""),
         entrancePw: get(cols.ENTRANCE_PW),
         receiver: get(cols.RECEIVER),
-        receiverPhone: String(get(cols.RECEIVER_PHONE) || "")
+        receiverPhone: String(get(cols.RECEIVER_PHONE) || ""),
+        orderTime: parseOrderTime(get(cols.ORDER_TIME))
       });
     }
     return rows;
@@ -1667,6 +1697,29 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       });
     })();
 
+    // 주문시각 범위·건수 + 오전 10시 마감 이후(다음 회차) 주문
+    var CUTOFF_HOUR = 10;
+    var timeStats = null, afterCutoff = [], noTimeCount = 0;
+    (function () {
+      var ts = [];
+      orders.forEach(function (row) {
+        if (row.orderTime instanceof Date && !isNaN(row.orderTime)) ts.push(row.orderTime.getTime());
+        else noTimeCount++;
+      });
+      if (!ts.length) return;
+      var now = new Date();
+      var cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), CUTOFF_HOUR, 0, 0, 0);
+      if (now.getTime() < cutoff.getTime()) cutoff = new Date(cutoff.getTime() - 86400000); // 아직 오늘 10시 전이면 어제 10시
+      timeStats = { count: ts.length, total: orders.length, noTime: noTimeCount, min: new Date(Math.min.apply(null, ts)), max: new Date(Math.max.apply(null, ts)), cutoff: cutoff };
+      orders.forEach(function (row) {
+        if (row.orderTime instanceof Date && !isNaN(row.orderTime) && row.orderTime.getTime() > cutoff.getTime()) {
+          var c = classify(row.name, row.option);
+          afterCutoff.push({ vendor: (c && VENDOR_META[c] ? VENDOR_META[c].name : "미분류"), receiver: row.receiver, product: row.name, time: row.orderTime });
+        }
+      });
+      afterCutoff.sort(function (a, b) { return a.time.getTime() - b.time.getTime(); });
+    })();
+
     return {
       total: orders.length,
       matched: matchedCount,
@@ -1674,7 +1727,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       failed: failed,
       outputs: outputs,
       addrWarnings: addrWarnings,
-      phoneConflicts: phoneConflicts
+      phoneConflicts: phoneConflicts,
+      timeStats: timeStats,
+      afterCutoff: afterCutoff
     };
   }
 
@@ -1956,6 +2011,32 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       }).join("");
     } else {
       addrBox.style.display = "none";
+    }
+
+    // 주문시각 요약
+    function fmtDT(d) { function p(n) { return (n < 10 ? "0" : "") + n; } return (d.getMonth() + 1) + "/" + d.getDate() + " " + p(d.getHours()) + ":" + p(d.getMinutes()); }
+    var ts = report.timeStats;
+    var timeSummary = document.getElementById("timeSummary");
+    if (ts) {
+      timeSummary.style.display = "block";
+      timeSummary.innerHTML = "🕒 주문시각 <b>" + fmtDT(ts.min) + " ~ " + fmtDT(ts.max) + "</b> · 총 <b>" + ts.total + "건</b>" +
+        (ts.noTime ? " <span style='opacity:.7'>(시각 확인불가 " + ts.noTime + "건)</span>" : "") +
+        "<br>발주 마감 기준: <b>" + fmtDT(ts.cutoff) + " (오전 10시)</b> — 이 시각 이후 접수분은 아래 '다음 회차'로 표시됩니다.";
+    } else {
+      timeSummary.style.display = "none";
+    }
+
+    var afterCutoff = report.afterCutoff || [];
+    var lateBox = document.getElementById("lateBox");
+    if (afterCutoff.length) {
+      lateBox.style.display = "block";
+      lateBox.open = true;
+      document.getElementById("lateBadge").textContent = afterCutoff.length;
+      document.getElementById("lateBody").innerHTML = afterCutoff.map(function (w) {
+        return '<div class="aux-item"><span class="aux-name">' + escapeHtml(String(w.receiver || "(이름 없음)")) + " · " + escapeHtml(String(w.vendor)) + '</span><span class="aux-n mono">' + fmtDT(w.time) + " · " + escapeHtml(String(w.product).slice(0, 24)) + '</span></div>';
+      }).join("");
+    } else {
+      lateBox.style.display = "none";
     }
 
     var phoneConflicts = report.phoneConflicts || [];
