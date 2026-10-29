@@ -700,7 +700,7 @@
         </details>
         <details class="aux" id="lateBox" data-kind="error" style="display:none">
           <summary>
-            <span>⏭ 오전 10시 마감 이후 접수 — 다음 회차로 확인</span>
+            <span>⏭ 신대장떡볶이 · 오전 10시 마감 이후 접수 — 다음 회차 확인</span>
             <span class="badge mono" id="lateBadge">0</span>
           </summary>
           <div class="aux-body" id="lateBody"></div>
@@ -1713,8 +1713,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       timeStats = { count: ts.length, total: orders.length, noTime: noTimeCount, min: new Date(Math.min.apply(null, ts)), max: new Date(Math.max.apply(null, ts)), cutoff: cutoff };
       orders.forEach(function (row) {
         if (row.orderTime instanceof Date && !isNaN(row.orderTime) && row.orderTime.getTime() > cutoff.getTime()) {
-          var c = classify(row.name, row.option);
-          afterCutoff.push({ vendor: (c && VENDOR_META[c] ? VENDOR_META[c].name : "미분류"), receiver: row.receiver, product: row.name, time: row.orderTime });
+          if (classify(row.name, row.option) !== "tteok") return; // 신대장떡볶이만 (회차 누락 관리 대상)
+          afterCutoff.push({ vendor: "신대장떡볶이", receiver: row.receiver, product: row.name, option: row.option, time: row.orderTime });
         }
       });
       afterCutoff.sort(function (a, b) { return a.time.getTime() - b.time.getTime(); });
@@ -2033,7 +2033,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       lateBox.open = true;
       document.getElementById("lateBadge").textContent = afterCutoff.length;
       document.getElementById("lateBody").innerHTML = afterCutoff.map(function (w) {
-        return '<div class="aux-item"><span class="aux-name">' + escapeHtml(String(w.receiver || "(이름 없음)")) + " · " + escapeHtml(String(w.vendor)) + '</span><span class="aux-n mono">' + fmtDT(w.time) + " · " + escapeHtml(String(w.product).slice(0, 24)) + '</span></div>';
+        var opt = cleanOption(String(w.option || "")).slice(0, 28);
+        return '<div class="aux-item"><span class="aux-name">' + fmtDT(w.time) + " · " + escapeHtml(String(w.receiver || "(이름 없음)")) + '</span><span class="aux-n mono">' + escapeHtml(opt) + '</span></div>';
       }).join("");
     } else {
       lateBox.style.display = "none";
