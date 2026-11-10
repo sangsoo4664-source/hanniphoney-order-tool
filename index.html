@@ -942,8 +942,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return null;
   }
 
-  function memo(entrancePw) {
-    return entrancePw ? "공동현관 비밀번호: " + entrancePw : "";
+  function memo(entrancePw, request) {
+    var parts = [];
+    if (entrancePw) parts.push("공동현관 비밀번호: " + entrancePw);
+    var req = String(request == null ? "" : request).replace(/\s+/g, " ").trim();
+    // 플랫폼이 빈 요청사항에 넣는 상용구 제외
+    if (req && !/^(없음|없습니다|-|\.|선택안함|해당없음|요청사항없음|배송메모없음)$/.test(req)) parts.push(req);
+    return parts.join(" / ");
   }
 
   function setCell(ws, r, c, value, type) {
@@ -1085,7 +1090,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 8, row.receiverPhone, "s");
       setCell(ws, r, 11, row.zipcode, "s");
       setCell(ws, r, 12, joinDetailAddr(row.address));
-      setCell(ws, r, 13, memo(row.entrancePw));
+      setCell(ws, r, 13, memo(row.entrancePw, row.request));
       setCell(ws, r, 14, pname);
       setCell(ws, r, 15, popt);
       setCell(ws, r, 16, qtyOut, "n");
@@ -1198,7 +1203,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 7, row.receiverPhone, "s");
       setCell(ws, r, 8, row.zipcode, "s");
       setCell(ws, r, 9, row.address);
-      setCell(ws, r, 11, memo(row.entrancePw));
+      setCell(ws, r, 11, memo(row.entrancePw, row.request));
       r++;
     });
     extendRef(ws, Math.max(r - 1, 1), 14);
@@ -1256,7 +1261,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 11, row.receiverPhone, "s");
       setCell(ws, r, 12, row.zipcode, "s");
       setCell(ws, r, 13, row.address);
-      setCell(ws, r, 14, memo(row.entrancePw));
+      setCell(ws, r, 14, memo(row.entrancePw, row.request));
       r++;
       seq++;
     });
@@ -1356,7 +1361,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 8, row.receiverPhone, "s");
       setCell(ws, r, 11, row.zipcode, "s");
       setCell(ws, r, 12, row.address);
-      setCell(ws, r, 13, memo(row.entrancePw));
+      setCell(ws, r, 13, memo(row.entrancePw, row.request));
       setCell(ws, r, 14, "수미감자");
       setCell(ws, r, 15, cleanOption(row.option));
       setCell(ws, r, 16, row.qty, "n");
@@ -1392,7 +1397,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 6, row.receiverPhone, "s");
       setCell(ws, r, 7, row.zipcode, "s");
       setCell(ws, r, 8, row.address);
-      setCell(ws, r, 9, memo(row.entrancePw));
+      setCell(ws, r, 9, memo(row.entrancePw, row.request));
       r++;
     });
     extendRef(ws, Math.max(r - 1, 1), 15);
@@ -1472,7 +1477,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         data += '<row r="' + rn + '">' +
           sc("A", rn, r.receiver, "") + sc("B", rn, r.receiverPhone, "") + sc("C", rn, joinDetailAddr(r.address), "") +
           sc("D", rn, c.product, ' s="2"') + nc("E", rn, c.qty, ' s="4"') +
-          sc("F", rn, memo(r.entrancePw), "") + sc("G", rn, "CJ대한통운", "") + "</row>";
+          sc("F", rn, memo(r.entrancePw, r.request), "") + sc("G", rn, "CJ대한통운", "") + "</row>";
         rn++;
       });
     });
@@ -1523,6 +1528,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var range = XLSX.utils.decode_range(ws["!ref"]);
     function cellStr(r, c) { var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })]; return cell && cell.v != null ? String(cell.v).trim() : ""; }
     function timeCol(map) { var ks = ["주문일시", "주문 시점", "주문시점", "주문시각", "결제일시", "결제일", "주문일", "주문날짜", "주문시간"]; for (var i = 0; i < ks.length; i++) { if (map[ks[i]] != null) return map[ks[i]]; } return -1; }
+    // 배송 메모/요청사항 열 (토스=주문요청사항, 올웨이즈/TOGLE=배송메시지 등)
+    function reqCol(map) { var ks = ["주문요청사항", "배송메시지", "배송 메시지", "배송메세지", "배송 메세지", "배송메모", "배송 메모", "요청사항", "배송요청사항", "배송 요청사항", "주문 요청사항", "고객요청사항", "고객 요청사항"]; for (var i = 0; i < ks.length; i++) { if (map[ks[i]] != null) return map[ks[i]]; } return -1; }
     // 헤더행 탐색: 처음 6행 안에서 "상품명"이 있는 행
     for (var hr = range.s.r; hr <= Math.min(range.s.r + 5, range.e.r); hr++) {
       var idx = {};
@@ -1534,7 +1541,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         return {
           PRODUCT_NAME: idx["상품명"], OPTION: idx["옵션명"],
           QTY: (idx["주문건수"] != null ? idx["주문건수"] : idx["수량"]),
-          ADDRESS: idx["배송지"], ZIPCODE: idx["우편번호"], ENTRANCE_PW: -1,
+          ADDRESS: idx["배송지"], ZIPCODE: idx["우편번호"], ENTRANCE_PW: -1, REQUEST: reqCol(idx),
           RECEIVER: idx["수령인명"], RECEIVER_PHONE: idx["수령인 연락처"],
           COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: idx["송장번호"],
           STATUS: (idx["주문상태"] != null ? idx["주문상태"] : -1), STATUS_VALUE: "배송중",
@@ -1548,7 +1555,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         return {
           PRODUCT_NAME: idx["상품이름"], OPTION: idx["옵션이름"],
           QTY: (idx["상품수량"] != null ? idx["상품수량"] : idx["수량"]),
-          ADDRESS: idx["수취인주소"], ZIPCODE: idx["수취인우편번호"], ENTRANCE_PW: -1,
+          ADDRESS: idx["수취인주소"], ZIPCODE: idx["수취인우편번호"], ENTRANCE_PW: -1, REQUEST: reqCol(idx),
           RECEIVER: idx["수취인이름"], RECEIVER_PHONE: (idx["수취인전화번호1"] != null ? idx["수취인전화번호1"] : idx["수취인전화번호"]),
           COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: (idx["운송장번호"] != null ? idx["운송장번호"] : idx["송장번호"]),
           STATUS: -1, STATUS_VALUE: "",
@@ -1560,7 +1567,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       // TOGLE 출고내역서(구형): 상품명=10, 옵션=12
       if (idx["상품명"] === 10 && idx["옵션"] === 12) {
         return {
-          PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1,
+          PRODUCT_NAME: 10, OPTION: 12, QTY: 14, ADDRESS: 6, ZIPCODE: 7, ENTRANCE_PW: -1, REQUEST: reqCol(idx),
           RECEIVER: 5, RECEIVER_PHONE: 8, COURIER: 18, TRACKING: 19,
           STATUS: -1, STATUS_VALUE: "",
           ORDER_NO: (idx["주문번호"] != null ? idx["주문번호"] : -1),
@@ -1575,7 +1582,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     function oCol(name, fb) { return oIdx[name] != null ? oIdx[name] : fb; }
     return {
       PRODUCT_NAME: oCol("상품명", COL.PRODUCT_NAME), OPTION: oCol("옵션", COL.OPTION), QTY: oCol("수량", COL.QTY),
-      ADDRESS: oCol("주소", COL.ADDRESS), ZIPCODE: oCol("우편번호", COL.ZIPCODE), ENTRANCE_PW: oCol("공동현관 비밀번호", COL.ENTRANCE_PW),
+      ADDRESS: oCol("주소", COL.ADDRESS), ZIPCODE: oCol("우편번호", COL.ZIPCODE), ENTRANCE_PW: oCol("공동현관 비밀번호", COL.ENTRANCE_PW), REQUEST: reqCol(oIdx),
       RECEIVER: oCol("수령인", COL.RECEIVER), RECEIVER_PHONE: oCol("수령인 연락처", COL.RECEIVER_PHONE),
       COURIER: oCol("택배사", ORDER_COURIER_COL), TRACKING: oCol("운송장번호", ORDER_TRACKING_COL),
       STATUS: -1, STATUS_VALUE: "",
@@ -1623,6 +1630,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         address: get(cols.ADDRESS),
         zipcode: String(get(cols.ZIPCODE) || ""),
         entrancePw: get(cols.ENTRANCE_PW),
+        request: get(cols.REQUEST),
         receiver: get(cols.RECEIVER),
         receiverPhone: String(get(cols.RECEIVER_PHONE) || ""),
         orderTime: parseOrderTime(get(cols.ORDER_TIME))
