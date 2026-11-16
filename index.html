@@ -1661,13 +1661,28 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   function detectOrderCols(ws) {
     var range = XLSX.utils.decode_range(ws["!ref"]);
     function cellStr(r, c) { var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })]; return cell && cell.v != null ? String(cell.v).trim() : ""; }
-    function timeCol(map) { var ks = ["주문일시", "주문 시점", "주문시점", "주문시각", "결제일시", "결제일", "주문일", "주문날짜", "주문시간"]; for (var i = 0; i < ks.length; i++) { if (map[ks[i]] != null) return map[ks[i]]; } return -1; }
+    function timeCol(map) { var ks = ["주문일시", "주문 시점", "주문시점", "주문시각", "결제일시", "결제일", "주문일자", "주문일", "주문날짜", "주문시간"]; for (var i = 0; i < ks.length; i++) { if (map[ks[i]] != null) return map[ks[i]]; } return -1; }
     // 배송 메모/요청사항 열 (토스=주문요청사항, 올웨이즈/TOGLE=배송메시지 등)
     function reqCol(map) { var ks = ["주문요청사항", "배송메시지", "배송 메시지", "배송메세지", "배송 메세지", "배송메모", "배송 메모", "요청사항", "배송요청사항", "배송 요청사항", "주문 요청사항", "고객요청사항", "고객 요청사항"]; for (var i = 0; i < ks.length; i++) { if (map[ks[i]] != null) return map[ks[i]]; } return -1; }
     // 헤더행 탐색: 처음 6행 안에서 "상품명"이 있는 행
     for (var hr = range.s.r; hr <= Math.min(range.s.r + 5, range.e.r); hr++) {
       var idx = {};
       for (var c = range.s.c; c <= range.e.c; c++) { var v = cellStr(hr, c); if (v && !(v in idx)) idx[v] = c; }
+      // 어드민플러스 주문리스트: 고유 헤더 '어드민플러스주문번호' + 상품명/수령인. 전화는 '수령인연락처1'(연락처2가 앞에 올 수 있어 이름으로 찾음)
+      if (idx["어드민플러스주문번호"] != null && idx["상품명"] != null && idx["수령인"] != null) {
+        return {
+          PRODUCT_NAME: idx["상품명"], OPTION: (idx["옵션"] != null ? idx["옵션"] : -1),
+          QTY: (idx["수량"] != null ? idx["수량"] : -1),
+          ADDRESS: (idx["주소"] != null ? idx["주소"] : -1), ZIPCODE: (idx["우편번호"] != null ? idx["우편번호"] : -1), ENTRANCE_PW: -1, REQUEST: reqCol(idx),
+          RECEIVER: idx["수령인"],
+          RECEIVER_PHONE: (idx["수령인연락처1"] != null ? idx["수령인연락처1"] : (idx["수령인 연락처1"] != null ? idx["수령인 연락처1"] : (idx["수령인연락처"] != null ? idx["수령인연락처"] : (idx["수령인연락처2"] != null ? idx["수령인연락처2"] : -1)))),
+          COURIER: (idx["택배사"] != null ? idx["택배사"] : -1), TRACKING: (idx["운송장번호"] != null ? idx["운송장번호"] : (idx["송장번호"] != null ? idx["송장번호"] : -1)),
+          STATUS: -1, STATUS_VALUE: "",
+          ORDER_NO: (idx["주문번호"] != null ? idx["주문번호"] : -1),
+          ORDER_TIME: timeCol(idx),
+          dataStart: hr + 1, format: "어드민플러스"
+        };
+      }
       // 토스 주문배송관리: 옵션명 + 수령인명 + 송장번호 (헤더 아래 "수정 불가/가능" 안내행 있음)
       if (idx["상품명"] != null && idx["옵션명"] != null && idx["수령인명"] != null && idx["송장번호"] != null) {
         var ds = hr + 1;
@@ -2267,7 +2282,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   // 합치기 기준파일 형식별 열 위치 (올웨이즈 / TOGLE / 토스 자동 인식)
   function detectMergeCols(ws) {
     var c = detectOrderCols(ws);
-    return { PRODUCT_NAME: c.PRODUCT_NAME, RECEIVER: c.RECEIVER, RECEIVER_PHONE: c.RECEIVER_PHONE, COURIER: c.COURIER, TRACKING: c.TRACKING, STATUS: (c.STATUS != null ? c.STATUS : -1), STATUS_VALUE: (c.STATUS_VALUE || ""), ORDER_NO: (c.ORDER_NO != null ? c.ORDER_NO : -1), dataStart: c.dataStart, format: c.format };
+    return { PRODUCT_NAME: c.PRODUCT_NAME, OPTION: (c.OPTION != null ? c.OPTION : -1), RECEIVER: c.RECEIVER, RECEIVER_PHONE: c.RECEIVER_PHONE, ADDRESS: (c.ADDRESS != null ? c.ADDRESS : -1), COURIER: c.COURIER, TRACKING: c.TRACKING, STATUS: (c.STATUS != null ? c.STATUS : -1), STATUS_VALUE: (c.STATUS_VALUE || ""), ORDER_NO: (c.ORDER_NO != null ? c.ORDER_NO : -1), dataStart: c.dataStart, format: c.format };
   }
 
   function normPhone(v) {
@@ -2281,6 +2296,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var COURIER_KEYS = ["택배사", "배송사", "courier"];
   var RECEIVER_NAME_KEYS = ["수령인명", "수취인 성명", "수령자 명", "수령인", "수취인", "수하인", "받는분", "받는사람"];
   var PRODUCT_KEYS = ["상품명", "품목명", "상품 이름", "옵션명", "품목"];
+  var ADDR_KEYS = ["주소", "배송지", "주소지"]; // 송장파일 받는분 주소 열(송하인/보내는분 주소는 isSenderLabel에서 제외됨)
   function categoryOf(name) {
     var n = String(name || "");
     if (n.indexOf("복숭아") !== -1) return "peach";
@@ -2303,6 +2319,27 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return "";
   }
   function normName(v) { return String(v == null ? "" : v).replace(/\s+/g, ""); }
+  // 주소 정규화: 공백·기호 모두 제거, 한글/영문/숫자만 남겨 비교(동/호 띄어쓰기 차이 흡수)
+  function normAddr(v) { return String(v == null ? "" : v).replace(/[^0-9a-z가-힣]/gi, "").toLowerCase(); }
+  // 플랫폼이 이름을 가린 값(설**, 고객님 등) 판별 — 이 경우 이름 대신 전화+주소로 매칭
+  function isMaskedName(v) { var s = String(v == null ? "" : v).trim(); return !s || s.indexOf("*") !== -1 || s === "고객님" || s === "구매자" || s === "수취인" || s === "수령인" || s === "수하인"; }
+  // 상품명에서 핵심 품목어만 추출(수식어·무게·옵션·지역명 제거). 분류 없는 상품(감귤/홍합/아보카도 등)끼리 교차매칭 방지용.
+  var PROD_FILLERS = ["조생", "스테비아", "농법", "타이벡", "gap", "실시간", "특가", "초특가", "선착순", "당일조업", "제철", "국내산", "프리미엄", "정품", "한정", "이벤트", "사은품", "무료배송", "로얄과", "로얄", "대과", "중대과", "소과", "중과", "특과", "혼합", "사이즈", "내외", "구성", "옵션", "선택", "best", "상품", "판매", "제주", "서귀포", "통영", "포항", "완도", "거제", "남해", "여수", "성주", "해남", "나주", "상주", "청송", "영천", "국산"];
+  function prodKey(s) {
+    s = String(s == null ? "" : s).toLowerCase();
+    s = s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+    s = s.replace(/[0-9]+(\.[0-9]+)?\s*(kg|g|개|입|미|수|호|박스|팩|세트|병|포|말|단)?/g, " ");
+    for (var i = 0; i < PROD_FILLERS.length; i++) s = s.split(PROD_FILLERS[i]).join(" ");
+    var toks = s.match(/[가-힣]{2,}/g) || [];
+    var out = [], seen = {};
+    for (var j = 0; j < toks.length; j++) if (!seen[toks[j]]) { seen[toks[j]] = 1; out.push(toks[j]); }
+    return out;
+  }
+  function shareProdKey(a, b) {
+    if (!a || !b || !a.length || !b.length) return false;
+    for (var i = 0; i < a.length; i++) for (var j = 0; j < b.length; j++) { if (a[i] === b[j] || a[i].indexOf(b[j]) !== -1 || b[j].indexOf(a[i]) !== -1) return true; }
+    return false;
+  }
   function pickHit(hits, rowCat) {
     if (!hits || !hits.length) return null;
     var unused = hits.filter(function (x) { return !x.used; });
@@ -2322,7 +2359,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     var range = XLSX.utils.decode_range(ws["!ref"]);
     var best = null;
     for (var r = range.s.r; r <= Math.min(range.e.r, range.s.r + 9); r++) {
-      var cols = { phone: -1, phonePriority: -1, track: -1, courier: -1, name: -1, product: -1, orderNo: -1 };
+      var cols = { phone: -1, phonePriority: -1, track: -1, courier: -1, name: -1, product: -1, orderNo: -1, addr: -1 };
       var score = 0;
       for (var c = range.s.c; c <= range.e.c; c++) {
         var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
@@ -2343,6 +2380,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         if (cols.courier === -1 && COURIER_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.courier = c; score++; }
         if (cols.name === -1 && RECEIVER_NAME_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.name = c; score++; }
         if (cols.product === -1 && PRODUCT_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.product = c; }
+        if (cols.addr === -1 && v.indexOf("우편번호") === -1 && ADDR_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.addr = c; }
       }
       if (cols.track !== -1 && (cols.phone !== -1 || cols.name !== -1) && (!best || score > best.score)) {
         best = { row: r, cols: cols, score: score };
@@ -2388,8 +2426,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           var oCell = ws[XLSX.utils.encode_cell({ r: r, c: header.cols.orderNo })];
           orderNo = oCell && oCell.v != null ? String(oCell.v).trim() : "";
         }
+        var addr = "";
+        if (header.cols.addr !== -1) {
+          var aCell = ws[XLSX.utils.encode_cell({ r: r, c: header.cols.addr })];
+          addr = aCell && aCell.v != null ? String(aCell.v).trim() : "";
+        }
         if (!phone && !name && !orderNo) continue;
-        var entry = { tracking: track, courier: courier, name: name, category: categoryOf(prod), orderNo: orderNo };
+        var entry = { tracking: track, courier: courier, name: name, nname: normName(name), nphone: phone, naddr: normAddr(addr), category: categoryOf(prod), pkey: prodKey(prod), orderNo: orderNo };
         if (phone) (phoneMap[phone] = phoneMap[phone] || []).push(entry);
         if (name) { var nk = normName(name); (nameMap[nk] = nameMap[nk] || []).push(entry); }
         if (orderNo) (orderMap[orderNo] = orderMap[orderNo] || []).push(entry);
@@ -2563,18 +2606,43 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           if (!nameCell || !nameCell.v) continue;
           var phoneCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER_PHONE })];
           var phone = normPhone(phoneCell && phoneCell.v);
-          var rowCat = categoryOf(nameCell.v);
+          // 카테고리: 상품명만으로 못 정하면(과메기는 미수가 옵션칸에 있음) 옵션까지 합쳐 재판정
+          var optText = "";
+          if (mc.OPTION != null && mc.OPTION >= 0) { var optCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.OPTION })]; optText = optCell && optCell.v != null ? String(optCell.v) : ""; }
+          var rowCat = categoryOf(nameCell.v) || categoryOf(nameCell.v + " " + optText);
+          var rowPkey = prodKey(nameCell.v + " " + optText);
           var receiverCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.RECEIVER })];
-          var rname = receiverCell && receiverCell.v != null ? normName(receiverCell.v) : "";
-          // 주문번호 매칭 우선(토글↔토스 등 주문번호 일치 시 가장 정확), 없으면 전화/이름
+          var rnameRaw = receiverCell && receiverCell.v != null ? String(receiverCell.v) : "";
+          var rname = normName(rnameRaw);
+          var addrCell = (mc.ADDRESS != null && mc.ADDRESS >= 0) ? ws[XLSX.utils.encode_cell({ r: r, c: mc.ADDRESS })] : null;
+          var raddr = normAddr(addrCell && addrCell.v);
+          // 매칭 규칙: ①주문번호 완전일치가 최우선. ②없으면 전화번호를 기준축으로, 이름·주소는 양쪽 다 정상표기일 때만 일치 요구(동명이인 방지 + 플랫폼 이름가림 허용)
           var orderNo = "";
           if (mc.ORDER_NO != null && mc.ORDER_NO >= 0) {
             var onCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.ORDER_NO })];
             orderNo = onCell && onCell.v != null ? String(onCell.v).trim() : "";
           }
           var chosen = orderNo ? pickHit(combinedOrder[orderNo], rowCat) : null;
-          if (!chosen) chosen = pickHit(phone ? combinedPhone[phone] : null, rowCat);
-          if (!chosen && rname) chosen = pickHit(combinedName[rname], rowCat);
+          if (!chosen) {
+            var pool = [];
+            if (phone && combinedPhone[phone]) pool = pool.concat(combinedPhone[phone]);
+            if (rname && combinedName[rname]) pool = pool.concat(combinedName[rname]);
+            var seen = [], cands = [];
+            for (var pi = 0; pi < pool.length; pi++) { if (seen.indexOf(pool[pi]) === -1) { seen.push(pool[pi]); cands.push(pool[pi]); } }
+            var strict = cands.filter(function (e) {
+              if (!phone || e.nphone !== phone) return false; // ① 전화번호 일치 필수(기준축)
+              // ② 주소: 양쪽 모두 정상표기(비어있지/가려지지 않음)면 반드시 일치
+              if (raddr && e.naddr && raddr.indexOf("*") === -1 && e.naddr.indexOf("*") === -1 && e.naddr !== raddr) return false;
+              // ③ 이름: 양쪽 모두 정상표기면 반드시 일치 (설**·고객님 등 가려진 경우엔 전화+주소로 인정)
+              if (!isMaskedName(rnameRaw) && !isMaskedName(e.name) && rname && e.nname !== rname) return false;
+              // ④ 상품분류 일치 필수: 같은 고객이 여러 상품을 주문했을 때 다른 분류 송장이 붙는 것 방지(예: 감귤 주문에 감자 송장)
+              if ((rowCat || "") !== (e.category || "")) return false;
+              // ⑤ 분류가 없는 상품(감귤·홍합·아보카도 등)은 상품명 핵심어가 겹칠 때만 매칭(감귤↔홍합 교차 방지). 분류가 있으면 ④로 충분하니 생략.
+              if (!rowCat && !shareProdKey(rowPkey, e.pkey)) return false;
+              return true;
+            });
+            chosen = pickHit(strict, rowCat);
+          }
           if (chosen) {
             chosen.used = true;
             matched++;
