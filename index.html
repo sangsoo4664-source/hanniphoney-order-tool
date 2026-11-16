@@ -2313,6 +2313,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("꼬막") !== -1) return "carrot";
     if (n.indexOf("진상미") !== -1) return "carrot";
     if (n.indexOf("오징어") !== -1) return "carrot";
+    if (n.indexOf("절임배추") !== -1 || n.indexOf("콜라비") !== -1) return "baechu"; // 절임배추+콜라비 번들(올웨이즈 "절임배추"↔송장 "콜라비" 동일주문)
     if (n.indexOf("과메기") !== -1 || n.indexOf("손질진공") !== -1) { var gmc = n.match(/(\d+)\s*[미입]/); var gmcN = gmc ? parseInt(gmc[1], 10) : 0; var gmcSet = /야채|세트|모듬|홍게/.test(n); if (gmcN === 15 || gmcN === 20) return "onion"; if ((gmcN === 5 || gmcN === 10) && !gmcSet) return "goodsf"; if ((gmcN === 5 || gmcN === 10) && gmcSet) return "dangol"; return ""; }
     if (n.indexOf("벌꿀") !== -1 || n.indexOf("꿀스틱") !== -1) return "honey";
     if (n.indexOf("떡볶이") !== -1 || n.indexOf("달대장") !== -1 || n.indexOf("로제") !== -1 || n.indexOf("모듬튀김") !== -1 || n.indexOf("어묵") !== -1 || n.indexOf("김말이") !== -1 || n.indexOf("당면") !== -1 || n.indexOf("만두") !== -1) return "tteok";
@@ -2373,13 +2374,14 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           // 연락처2/전화2는 보조번호(빈칸 많음) → 1차 연락처보다 낮은 우선순위
           var _pr = /(?:연락처|전화(?:번호)?)\s*2/.test(v) ? 2 : 3;
           if (cols.phonePriority < _pr) { cols.phone = c; cols.phonePriority = _pr; score += 2; }
-        } else if (cols.phonePriority < 1 && GENERIC_PHONE_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) {
+        } else if (cols.phonePriority < 1 && (v === "번호" || GENERIC_PHONE_KEYS.some(function (k) { return v.indexOf(k) !== -1; }))) {
+          // "번호"는 정확히 일치할 때만(운송장번호/계좌번호/우편번호 오인식 방지)
           cols.phone = c; cols.phonePriority = 1; score += 1;
         }
         if (cols.track === -1 && TRACK_KEYS.some(function (k) { return v.toLowerCase().indexOf(k.toLowerCase()) !== -1; })) { cols.track = c; score++; }
         if (cols.courier === -1 && COURIER_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.courier = c; score++; }
         if (cols.name === -1 && RECEIVER_NAME_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.name = c; score++; }
-        if (cols.product === -1 && PRODUCT_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.product = c; }
+        if (cols.product === -1 && (v === "상품" || PRODUCT_KEYS.some(function (k) { return v.indexOf(k) !== -1; }))) { cols.product = c; }
         if (cols.addr === -1 && v.indexOf("우편번호") === -1 && ADDR_KEYS.some(function (k) { return v.indexOf(k) !== -1; })) { cols.addr = c; }
       }
       if (cols.track !== -1 && (cols.phone !== -1 || cols.name !== -1) && (!best || score > best.score)) {
@@ -2630,17 +2632,20 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             var seen = [], cands = [];
             for (var pi = 0; pi < pool.length; pi++) { if (seen.indexOf(pool[pi]) === -1) { seen.push(pool[pi]); cands.push(pool[pi]); } }
             var strict = cands.filter(function (e) {
-              if (!phone || e.nphone !== phone) return false; // ① 전화번호 일치 필수(기준축)
-              // ② 주소: 양쪽 모두 정상표기(비어있지/가려지지 않음)면 반드시 일치
-              if (raddr && e.naddr && raddr.indexOf("*") === -1 && e.naddr.indexOf("*") === -1 && e.naddr !== raddr) return false;
-              // ③ 이름: 양쪽 모두 정상표기면 반드시 일치 (설**·고객님 등 가려진 경우엔 전화+주소로 인정)
+              if (!phone || e.nphone !== phone) return false; // ① 전화번호 일치 필수(기준축 — 동명이인 방지)
+              // ② 이름: 양쪽 모두 정상표기면 반드시 일치 (설**·고객님 등 가려진 경우엔 전화로 인정)
               if (!isMaskedName(rnameRaw) && !isMaskedName(e.name) && rname && e.nname !== rname) return false;
-              // ④ 상품분류 일치 필수: 같은 고객이 여러 상품을 주문했을 때 다른 분류 송장이 붙는 것 방지(예: 감귤 주문에 감자 송장)
+              // ③ 상품분류 일치 필수: 같은 고객이 여러 상품 주문 시 다른 분류 송장이 붙는 것 방지(예: 감귤 주문에 감자 송장)
               if ((rowCat || "") !== (e.category || "")) return false;
-              // ⑤ 분류가 없는 상품(감귤·홍합·아보카도 등)은 상품명 핵심어가 겹칠 때만 매칭(감귤↔홍합 교차 방지). 분류가 있으면 ④로 충분하니 생략.
+              // ④ 분류가 없는 상품(감귤·홍합·아보카도 등)은 상품명 핵심어가 겹칠 때만(감귤↔홍합 교차 방지). 분류 있으면 ③으로 충분.
               if (!rowCat && !shareProdKey(rowPkey, e.pkey)) return false;
               return true;
             });
+            // ⑤ 후보가 둘 이상이면 주소 일치하는 것으로 좁힘(주소는 보조 — 송장 주소가 물류센터면 생략되고 전화+이름+분류로 매칭됨)
+            if (strict.length > 1 && raddr) {
+              var byAddr = strict.filter(function (e) { return e.naddr && e.naddr.indexOf("*") === -1 && e.naddr === raddr; });
+              if (byAddr.length) strict = byAddr;
+            }
             chosen = pickHit(strict, rowCat);
           }
           if (chosen) {
