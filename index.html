@@ -837,7 +837,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
-    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·통영석화·벌교새꼬막", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
+    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·통영석화·벌교새꼬막·여주진상미쌀·손질갑오징어", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     gasan: { name: "가산프레시", product: "홍가리비·통영 생굴", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
     goodsf: { name: "좋은씨푸드", product: "과메기(손질진공 단품 5·10미)", swatch: "#2e8b8b", emoji: "🐟", file: "좋은씨푸드_발주.xlsx" },
     pumpkin: { name: "몬딱제주", product: "미니밤호박·청귤·감귤(노지 제외)·골드키위·빨간사과·햇배선물세트", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
@@ -915,6 +915,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("석화") !== -1) return "carrot"; // 석화 → 캄므유통
     if (name.indexOf("굴") !== -1 && name.indexOf("굴비") === -1 && name.indexOf("굴소스") === -1) return "gasan"; // 통영 생굴 → 가산프레시 (굴비/굴소스 제외, 최저가)
     if (name.indexOf("꼬막") !== -1) return "carrot"; // 벌교 세꼬막 → 캄므유통
+    if (name.indexOf("진상미") !== -1) return "carrot"; // 여주 쌀(진상미) → 캄므유통
+    if (name.indexOf("오징어") !== -1) return "carrot"; // 손질 갑오징어 → 캄므유통
     if (name.indexOf("과메기") !== -1) { // 과메기: 15·20미→마니팜, 단품 5·10미→좋은씨푸드, 그 외 미매칭
       var gmTxt = name + " " + String(opt || "");
       var gmMi = gmTxt.match(/(\d+)\s*미/);
@@ -1058,6 +1060,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         popt = /석화|굴/.test(gopt) ? gopt : (gtype + (gopt ? " " + gopt : ""));
       } else if (row.name.indexOf("꼬막") !== -1) {
         pname = "벌교 새꼬막"; // 캄므 등록명(새꼬막). 주문이 '세꼬막'이어도 이 이름으로 발주
+        popt = cleanOption(row.option);
+      } else if (row.name.indexOf("진상미") !== -1) {
+        pname = "여주 쌀 (진상미)"; // 캄므 등록명
+        var riceKg = extractWeightKg(row.option);
+        popt = riceKg ? ("여주 쌀 " + riceKg + "kg") : cleanOption(row.option);
+      } else if (row.name.indexOf("오징어") !== -1) {
+        pname = "손질 갑오징어"; // 캄므 손질 갑오징어
         popt = cleanOption(row.option);
       } else if (row.name.indexOf("고구마") !== -1) {
         var gf = buildGogumaFields(row.option);
@@ -2247,6 +2256,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("석화") !== -1) return "carrot";
     if (n.indexOf("굴") !== -1 && n.indexOf("굴비") === -1) return "gasan";
     if (n.indexOf("꼬막") !== -1) return "carrot";
+    if (n.indexOf("진상미") !== -1) return "carrot";
+    if (n.indexOf("오징어") !== -1) return "carrot";
     if (n.indexOf("과메기") !== -1 || n.indexOf("손질진공") !== -1) { var gmc = n.match(/(\d+)\s*미/); var gmcN = gmc ? parseInt(gmc[1], 10) : 0; if (gmcN === 15 || gmcN === 20) return "onion"; if ((gmcN === 5 || gmcN === 10) && !/야채|세트|모듬|홍게/.test(n)) return "goodsf"; return ""; }
     if (n.indexOf("벌꿀") !== -1 || n.indexOf("꿀스틱") !== -1) return "honey";
     if (n.indexOf("떡볶이") !== -1 || n.indexOf("달대장") !== -1 || n.indexOf("로제") !== -1 || n.indexOf("모듬튀김") !== -1 || n.indexOf("어묵") !== -1 || n.indexOf("김말이") !== -1 || n.indexOf("당면") !== -1 || n.indexOf("만두") !== -1) return "tteok";
