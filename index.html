@@ -2661,7 +2661,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
               cr = VENDOR_COURIER.honey; // 례답 → 롯데택배 고정
             } else {
               cr = String(chosen.courier || "").replace(/\s+/g, ""); // "CJ 대한통운"→"CJ대한통운"
-              if (!cr) cr = (vendor && VENDOR_COURIER[vendor]) || "";
+              // 송장에 택배사 없으면 업체 기본값. rowCat(옵션까지 반영) 우선 — 과메기 goodsf/dangol 등 classify(상품명만)로 못잡는 것 커버.
+              if (!cr) cr = (rowCat && VENDOR_COURIER[rowCat]) || (vendor && VENDOR_COURIER[vendor]) || "";
             }
             if (cr) setCell(ws, r, mc.COURIER, cr, "s");
             // 토스: 송장 채운 행은 주문상태를 "배송중"으로 변경해야 업로드됨
