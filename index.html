@@ -839,9 +839,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
     carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·통영석화·벌교새꼬막", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     gasan: { name: "가산프레시", product: "홍가리비·통영 생굴", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
+    goodsf: { name: "좋은씨푸드", product: "과메기(손질진공 단품 5·10미)", swatch: "#2e8b8b", emoji: "🐟", file: "좋은씨푸드_발주.xlsx" },
     pumpkin: { name: "몬딱제주", product: "미니밤호박·청귤·감귤(노지 제외)·골드키위·빨간사과·햇배선물세트", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
     potato: { name: "캄므유통", product: "수미감자", swatch: "#b08a3a", emoji: "🥔", file: "캄므유통_감자_발주.xlsx" },
-    onion: { name: "마니팜", product: "조생 스테비아농법 타이벡감귤·조생 GAP 서귀포감귤·제주 황금향·히카마(멕시코감자)", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_타이벡감귤_발주.xlsx" },
+    onion: { name: "마니팜", product: "조생 스테비아농법 타이벡감귤·조생 GAP 서귀포감귤·제주 황금향·히카마(멕시코감자)·과메기(15·20미)", swatch: "#c8b45a", emoji: "🧅", file: "마니팜_타이벡감귤_발주.xlsx" },
     tteok: { name: "신대장떡볶이", product: "떡볶이 밀키트", swatch: "#c0392b", emoji: "🌶️", file: "신대장_떡볶이_발주.xlsx" },
     honey: { name: "례답", product: "천연 벌꿀스틱", swatch: "#caa33a", emoji: "🍯", file: "례답_벌꿀스틱_발주.xlsx" }
   };
@@ -914,7 +915,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("석화") !== -1) return "carrot"; // 석화 → 캄므유통
     if (name.indexOf("굴") !== -1 && name.indexOf("굴비") === -1 && name.indexOf("굴소스") === -1) return "gasan"; // 통영 생굴 → 가산프레시 (굴비/굴소스 제외, 최저가)
     if (name.indexOf("꼬막") !== -1) return "carrot"; // 벌교 세꼬막 → 캄므유통
-    // 과메기: 현재 매칭 업체 없음(미매칭 처리) — 업체 정해지면 복원
+    if (name.indexOf("과메기") !== -1) { // 과메기: 15·20미→마니팜, 단품 5·10미→좋은씨푸드, 그 외 미매칭
+      var gmTxt = name + " " + String(opt || "");
+      var gmMi = gmTxt.match(/(\d+)\s*미/);
+      var gmN = gmMi ? parseInt(gmMi[1], 10) : null;
+      var gmSet = /야채|세트|모듬|홍게/.test(gmTxt);
+      if (gmN === 15 || gmN === 20) return "onion";
+      if ((gmN === 5 || gmN === 10) && !gmSet) return "goodsf"; // 손질 단품 5·10미 → 좋은씨푸드
+      return null;
+    }
     if (name.indexOf("당근") !== -1) return "carrot";
     if (name.indexOf("밤호박") !== -1) return "pumpkin";
     if (name.indexOf("청귤") !== -1 || name.indexOf("풋귤") !== -1) return "pumpkin";
@@ -1567,7 +1576,39 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return XLSX.write(wb, { type: "array", bookType: "xlsx" });
   }
 
-  var FILLERS = { peach: fillPeach, carrot: fillCarrot, pumpkin: fillPumpkin, potato: fillPotato, onion: fillOnion, tteok: fillTteok, honey: fillHoney, gasan: fillGasan };
+  // 좋은씨푸드 발주서: 과메기 손질진공 단품 5·10미 (양식 A~N, 2행부터 데이터)
+  function fillGoodsf(rows) {
+    var header = ["수하인명", "수하인주소", "수하인 핸드폰번호", "수하인전화번호", "수량", "박스타입", "박스수량", "운임구분", "품목명", "배송메세지", "송하인명", "송하인연락처", "송하인주소", "송장번호"];
+    var aoa = [header];
+    rows.forEach(function (row) {
+      var mi = (String(row.name || "") + " " + String(row.option || "")).match(/(\d+)\s*미/);
+      var n = mi ? parseInt(mi[1], 10) : 5;
+      aoa.push([
+        row.receiver == null ? "" : String(row.receiver),
+        joinDetailAddr(row.address),
+        String(row.receiverPhone || ""),
+        "",
+        Number(row.qty) || 1,
+        "", "", "",
+        "손질진공" + n + "미",
+        memo(row.entrancePw, row.request),
+        SENDER_NAME, SENDER_PHONE_DASH, "",
+        ""
+      ]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    for (var i = 1; i < aoa.length; i++) {
+      ["C", "D"].forEach(function (col) {
+        var ref = col + (i + 1), cell = ws[ref];
+        if (cell && cell.v !== "" && cell.v != null) { cell.t = "s"; cell.v = String(cell.v); }
+      });
+    }
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "발주");
+    return XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  }
+
+  var FILLERS = { peach: fillPeach, carrot: fillCarrot, pumpkin: fillPumpkin, potato: fillPotato, onion: fillOnion, tteok: fillTteok, honey: fillHoney, gasan: fillGasan, goodsf: fillGoodsf };
 
   // 주문 파일 형식 자동 인식 (올웨이즈 주문내역 / TOGLE 출고내역서 / 토스 주문배송관리)
   // 반환: 각 열 인덱스 + dataStart(데이터 시작행) + COURIER/TRACKING(합치기용) + format
@@ -1717,7 +1758,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
 
   function processOrders(orders) {
-    var buckets = { peach: [], carrot: [], pumpkin: [], potato: [], onion: [], tteok: [], honey: [], gasan: [] };
+    var buckets = { peach: [], carrot: [], pumpkin: [], potato: [], onion: [], tteok: [], honey: [], gasan: [], goodsf: [] };
     var unmatched = {};
     var failed = {};
 
@@ -2040,7 +2081,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
     var vendorList = document.getElementById("vendorList");
     vendorList.innerHTML = "";
-    ["peach", "carrot", "gasan", "pumpkin", "potato", "onion", "tteok", "honey"]
+    ["peach", "carrot", "gasan", "pumpkin", "potato", "onion", "goodsf", "tteok", "honey"]
       .filter(function (cat) { return report.outputs[cat] && report.outputs[cat].rows.length > 0; })
       .forEach(function (cat) {
       var meta = VENDOR_META[cat];
@@ -2206,7 +2247,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("석화") !== -1) return "carrot";
     if (n.indexOf("굴") !== -1 && n.indexOf("굴비") === -1) return "gasan";
     if (n.indexOf("꼬막") !== -1) return "carrot";
-    // 과메기: 미매칭(업체 미지정)
+    if (n.indexOf("과메기") !== -1 || n.indexOf("손질진공") !== -1) { var gmc = n.match(/(\d+)\s*미/); var gmcN = gmc ? parseInt(gmc[1], 10) : 0; if (gmcN === 15 || gmcN === 20) return "onion"; if ((gmcN === 5 || gmcN === 10) && !/야채|세트|모듬|홍게/.test(n)) return "goodsf"; return ""; }
     if (n.indexOf("벌꿀") !== -1 || n.indexOf("꿀스틱") !== -1) return "honey";
     if (n.indexOf("떡볶이") !== -1 || n.indexOf("달대장") !== -1 || n.indexOf("로제") !== -1 || n.indexOf("모듬튀김") !== -1 || n.indexOf("어묵") !== -1 || n.indexOf("김말이") !== -1 || n.indexOf("당면") !== -1 || n.indexOf("만두") !== -1) return "tteok";
     return "";
