@@ -1400,11 +1400,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     rows.forEach(function (row) {
       var oname;
       if (row.name.indexOf("콜라비") !== -1)
-        oname = "제주산 햇 콜라비 " + cleanOption(row.option);   // 마니팜 콜라비 [P08] (2026-11-18~)
+        oname = "[P08] 제주산 햇 콜라비 " + cleanOption(row.option);   // 마니팜 콜라비 (2026-11-18~) — 코드로 매칭
       else if (row.name.indexOf("노지") !== -1 && row.name.indexOf("감귤") !== -1)
-        oname = "★BEST★ GAP 노지감귤(조생) " + cleanOption(row.option);    // 마니팜 노지감귤 [T51] (2026-11-18~)
+        oname = "[T51] ★BEST★ GAP 노지감귤(조생) " + cleanOption(row.option);    // 마니팜 노지감귤 (2026-11-18~) — 코드로 매칭
       else if (row.name.indexOf("타이벡") !== -1 || row.name.indexOf("감귤") !== -1)
-        oname = "조생 타이벡감귤 " + cleanOption(row.option);   // 마니팜 타이벡감귤 [S23] (2026-11-18~)
+        oname = "[S23] 조생 타이벡감귤 " + cleanOption(row.option);   // 마니팜 타이벡감귤 (2026-11-18~) — 코드로 매칭
       else if (row.name.indexOf("황금향") !== -1)
         oname = "제주 황금향 " + cleanOption(row.option);   // 황금향 → 마니팜
       else if (row.name.indexOf("멕시코") !== -1 || row.name.indexOf("히카마") !== -1)
