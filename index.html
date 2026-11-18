@@ -2304,7 +2304,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var TRACK_KEYS = ["운송장번호", "송장번호", "운송장", "tracking", "invoice no"];
   var COURIER_KEYS = ["택배사", "배송사", "courier"];
   var RECEIVER_NAME_KEYS = ["수령인명", "수취인 성명", "수령자 명", "수령인", "수취인", "수하인", "받는분", "받는사람"];
-  var PRODUCT_KEYS = ["상품명", "품목명", "상품 이름", "옵션명", "품목"];
+  var PRODUCT_KEYS = ["상품명", "품목명", "상품이름", "상품 이름", "옵션명", "품목"];
   var ADDR_KEYS = ["주소", "배송지", "주소지"]; // 송장파일 받는분 주소 열(송하인/보내는분 주소는 isSenderLabel에서 제외됨)
   function categoryOf(name) {
     var n = String(name || "");
@@ -2325,7 +2325,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("절임배추") !== -1) return "carrot"; // 절임배추 → 캄므유통
     if (n.indexOf("콜라비") !== -1) return "onion"; // 제주 콜라비 → 마니팜(단품, 2026-11-18~)
     if (n.indexOf("과메기") !== -1 || n.indexOf("손질진공") !== -1) { var gmc = n.match(/(\d+)\s*[미입]/); var gmcN = gmc ? parseInt(gmc[1], 10) : 0; var gmcSet = /야채|세트|모듬|홍게/.test(n); if (gmcN === 15 || gmcN === 20) return "onion"; if ((gmcN === 5 || gmcN === 10) && !gmcSet) return "goodsf"; if ((gmcN === 5 || gmcN === 10) && gmcSet) return "dangol"; return ""; }
-    if (n.indexOf("벌꿀") !== -1 || n.indexOf("꿀스틱") !== -1) return "honey";
+    if (n.indexOf("벌꿀") !== -1 || n.indexOf("꿀스틱") !== -1 || isRedapHoney(n)) return "honey"; // 꿀보자기·아카시아·때죽·야생화·피나무·호두정과·천연N종 포함
     if (n.indexOf("떡볶이") !== -1 || n.indexOf("달대장") !== -1 || n.indexOf("로제") !== -1 || n.indexOf("모듬튀김") !== -1 || n.indexOf("어묵") !== -1 || n.indexOf("김말이") !== -1 || n.indexOf("당면") !== -1 || n.indexOf("만두") !== -1) return "tteok";
     return "";
   }
@@ -2642,12 +2642,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             var seen = [], cands = [];
             for (var pi = 0; pi < pool.length; pi++) { if (seen.indexOf(pool[pi]) === -1) { seen.push(pool[pi]); cands.push(pool[pi]); } }
             var strict = cands.filter(function (e) {
-              if (!phone || e.nphone !== phone) return false; // ① 전화번호 일치 필수(기준축 — 동명이인 방지)
-              // ② 이름: 양쪽 모두 정상표기면 반드시 일치 (설**·고객님 등 가려진 경우엔 전화로 인정)
-              if (!isMaskedName(rnameRaw) && !isMaskedName(e.name) && rname && e.nname !== rname) return false;
-              // ③ 상품분류 일치 필수: 같은 고객이 여러 상품 주문 시 다른 분류 송장이 붙는 것 방지(예: 감귤 주문에 감자 송장)
+              var phoneOK = !!(phone && e.nphone === phone);
+              var nameEq = !!(rname && e.nname === rname);
+              var addrEq = !!(raddr && e.naddr && raddr.indexOf("*") === -1 && e.naddr.indexOf("*") === -1 && (e.naddr === raddr || e.naddr.indexOf(raddr) !== -1 || raddr.indexOf(e.naddr) !== -1));
+              // ① 기준축: 전화 일치, 또는(토스 안심번호처럼 전화가 달라 매칭 안 되는 경우) 이름+주소 모두 일치
+              if (phoneOK) {
+                // 전화 일치 시엔 이름도 양쪽 정상표기면 일치해야(동명이인 방지). 가려진 이름은 전화로 인정.
+                if (!isMaskedName(rnameRaw) && !isMaskedName(e.name) && rname && e.nname !== rname) return false;
+              } else {
+                if (!(nameEq && addrEq)) return false; // 전화 불일치면 이름·주소 둘 다 일치해야(동명이인은 주소로 차단)
+              }
+              // ② 상품분류 일치 필수: 같은 고객이 여러 상품 주문 시 다른 분류 송장이 붙는 것 방지(예: 감귤 주문에 감자 송장)
               if ((rowCat || "") !== (e.category || "")) return false;
-              // ④ 분류가 없는 상품(감귤·홍합·아보카도 등)은 상품명 핵심어가 겹칠 때만(감귤↔홍합 교차 방지). 분류 있으면 ③으로 충분.
+              // ③ 분류가 없는 상품(감귤·홍합 등)은 상품명 핵심어가 겹칠 때만(감귤↔홍합 교차 방지). 분류 있으면 ②로 충분.
               if (!rowCat && !shareProdKey(rowPkey, e.pkey)) return false;
               return true;
             });
