@@ -1070,8 +1070,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         var riceKg = extractWeightKg(row.option);
         popt = riceKg ? ("여주 쌀 " + riceKg + "kg") : cleanOption(row.option);
       } else if (row.name.indexOf("오징어") !== -1) {
-        pname = "손질 갑오징어"; // 캄므 손질 갑오징어
-        popt = cleanOption(row.option);
+        // 캄므는 손질 갑오징어 1kg만 판매 → 주문 kg만큼 1kg 수량으로 환산(2kg→2, 3kg→3). 옵션 "…: 1KG(4~5미)"의 콜론 뒤 중량을 읽음(손질 후 600g은 무시).
+        pname = "손질 갑오징어";
+        popt = "1kg";
+        var sqSel = String(row.option).indexOf(":") !== -1 ? String(row.option).split(":").pop() : String(row.option);
+        var sqKg = extractWeightKg(sqSel);
+        if (sqKg == null || !(sqKg > 0)) sqKg = 1;
+        qtyOut = sqKg * (Number(row.qty) || 1);
       } else if (row.name.indexOf("고구마") !== -1) {
         var gf = buildGogumaFields(row.option);
         pname = gf[0];
