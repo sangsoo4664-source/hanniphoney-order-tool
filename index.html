@@ -837,8 +837,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
-    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·통영석화·벌교새꼬막·여주진상미쌀·손질갑오징어·설향딸기", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
-    gasan: { name: "가산프레시", product: "홍가리비·통영 생굴", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
+    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·벌교새꼬막·여주진상미쌀·손질갑오징어·설향딸기", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
+    gasan: { name: "가산프레시", product: "홍가리비·통영 생굴·통영 석화", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
     goodsf: { name: "좋은씨푸드", product: "과메기(손질진공 단품 5·10미)", swatch: "#2e8b8b", emoji: "🐟", file: "좋은씨푸드_발주.xlsx" },
     dangol: { name: "단골대표님", product: "과메기(야채세트 5·10입)", swatch: "#7a5bb0", emoji: "🐟", file: "단골대표님_과메기_발주.xlsx" },
     pumpkin: { name: "몬딱제주", product: "미니밤호박·청귤·감귤(노지 제외)·골드키위·빨간사과·햇배선물세트", swatch: "#8a7b2f", emoji: "🎃", file: "몬딱제주_미니밤호박_발주.xlsx" },
@@ -916,7 +916,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (/김치|석박지|섞박지|깍두기|동치미/.test(name)) return "carrot"; // 김치류(포기·총각·열무·파·갓·맛김치·석박지·동치미·깍두기) → 캄므유통
     if (name.indexOf("메론") !== -1 || name.indexOf("멜론") !== -1) return "carrot"; // 머스크메론 → 캄므유통
     if (name.indexOf("홍합") !== -1) return "carrot"; // 홍합 → 캄므유통
-    if (name.indexOf("석화") !== -1) return "carrot"; // 석화 → 캄므유통
+    if (name.indexOf("석화") !== -1) return "gasan"; // 석화 → 가산프레시 (2026-11-20~ 생굴과 함께 가산)
     if (name.indexOf("굴") !== -1 && name.indexOf("굴비") === -1 && name.indexOf("굴소스") === -1) return "gasan"; // 통영 생굴 → 가산프레시 (굴비/굴소스 제외, 최저가)
     if (name.indexOf("꼬막") !== -1) return "carrot"; // 벌교 세꼬막 → 캄므유통
     if (name.indexOf("진상미") !== -1) return "carrot"; // 여주 쌀(진상미) → 캄므유통
@@ -1573,8 +1573,13 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       var hasPromo = /구매\s*시?\s*총\s*\d+\s*kg/i.test(opt);
       return { product: "홍가리비 1kg", qty: (hasPromo && qn >= 2) ? buyKg + 1 : buyKg };
     }
+    if (name.indexOf("석화") !== -1) {
+      var sopt = cleanOption(opt); // 통영 석화 (2026-11-20~ 가산프레시)
+      var sproduct = /석화/.test(sopt) ? sopt : ("통영 석화" + (sopt ? " " + sopt : ""));
+      return { product: sproduct, qty: Number(row.qty) || 1 };
+    }
     if (name.indexOf("굴") !== -1 && name.indexOf("굴비") === -1 && name.indexOf("굴소스") === -1) {
-      var gopt = cleanOption(opt); // 통영 생굴 (석화는 캄므로 분류되어 여기 안 옴)
+      var gopt = cleanOption(opt); // 통영 생굴
       var product = /굴/.test(gopt) ? gopt : ("통영 생굴" + (gopt ? " " + gopt : ""));
       return { product: product, qty: Number(row.qty) || 1 };
     }
@@ -2333,7 +2338,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("토마토") !== -1) return "tomato";
     if (n.indexOf("양파") !== -1) return "carrot";
     if (n.indexOf("가리비") !== -1 && n.indexOf("젓갈") === -1) return "gasan";
-    if (n.indexOf("석화") !== -1) return "carrot";
+    if (n.indexOf("석화") !== -1) return "gasan";
     if (n.indexOf("굴") !== -1 && n.indexOf("굴비") === -1) return "gasan";
     if (n.indexOf("꼬막") !== -1) return "carrot";
     if (n.indexOf("진상미") !== -1) return "carrot";
