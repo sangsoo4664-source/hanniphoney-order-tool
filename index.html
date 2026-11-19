@@ -837,7 +837,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
-    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·통영석화·벌교새꼬막·여주진상미쌀·손질갑오징어", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
+    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·통영석화·벌교새꼬막·여주진상미쌀·손질갑오징어·설향딸기", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     gasan: { name: "가산프레시", product: "홍가리비·통영 생굴", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
     goodsf: { name: "좋은씨푸드", product: "과메기(손질진공 단품 5·10미)", swatch: "#2e8b8b", emoji: "🐟", file: "좋은씨푸드_발주.xlsx" },
     dangol: { name: "단골대표님", product: "과메기(야채세트 5·10입)", swatch: "#7a5bb0", emoji: "🐟", file: "단골대표님_과메기_발주.xlsx" },
@@ -911,6 +911,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("콜라비") !== -1 && name.indexOf("절임배추") === -1) return "onion"; // 제주 콜라비 → 마니팜(단품, 2026-11-18~)
     if (name.indexOf("고구마") !== -1) return "carrot"; // 여주고구마 → 캄므
     if (name.indexOf("복숭아") !== -1) return "carrot"; // 천도복숭아 → 캄므유통
+    if (name.indexOf("딸기") !== -1 || name.indexOf("설향") !== -1) return "carrot"; // 설향딸기 → 캄므유통
     if (name.indexOf("가리비") !== -1 && name.indexOf("젓갈") === -1) return "gasan"; // 홍가리비 → 가산프레시 (젓갈 제외, 최저가)
     if (/김치|석박지|섞박지|깍두기|동치미/.test(name)) return "carrot"; // 김치류(포기·총각·열무·파·갓·맛김치·석박지·동치미·깍두기) → 캄므유통
     if (name.indexOf("메론") !== -1 || name.indexOf("멜론") !== -1) return "carrot"; // 머스크메론 → 캄므유통
@@ -1106,6 +1107,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         pname = "절임배추"; // 캄므유통
         var bk = extractWeightKg(row.option);
         popt = bk ? (bk + "kg") : cleanOption(row.option);
+      } else if (row.name.indexOf("딸기") !== -1 || row.name.indexOf("설향") !== -1) {
+        // 설향딸기 → 캄므: 500g 내외 특 15구 / 상 20구 (등급·구수 어느 쪽만 있어도 상호 보정)
+        pname = "설향딸기";
+        var sb = String(row.name) + " " + String(row.option);
+        var gu = (sb.match(/(\d+)\s*구/) || [])[1]; // 구수(15/20)가 가장 명확한 구분키 — 먼저 사용
+        if (gu === "15") popt = "500g 내외 특 15구";
+        else if (gu === "20") popt = "500g 내외 상 20구";
+        else if (sb.indexOf("특") !== -1) popt = "500g 내외 특 15구";
+        else if (sb.indexOf("상") !== -1) popt = "500g 내외 상 20구";
+        else popt = cleanOption(row.option);
       } else {
         var f = buildCarrotFields(row.option);
         pname = f[0];
@@ -2327,6 +2338,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("꼬막") !== -1) return "carrot";
     if (n.indexOf("진상미") !== -1) return "carrot";
     if (n.indexOf("오징어") !== -1) return "carrot";
+    if (n.indexOf("딸기") !== -1 || n.indexOf("설향") !== -1) return "carrot"; // 설향딸기 → 캄므유통
     if (n.indexOf("절임배추") !== -1) return "carrot"; // 절임배추 → 캄므유통
     if (n.indexOf("콜라비") !== -1) return "onion"; // 제주 콜라비 → 마니팜(단품, 2026-11-18~)
     if (n.indexOf("과메기") !== -1 || n.indexOf("손질진공") !== -1) { var gmc = n.match(/(\d+)\s*[미입]/); var gmcN = gmc ? parseInt(gmc[1], 10) : 0; var gmcSet = /야채|세트|모듬|홍게/.test(n); if (gmcN === 15 || gmcN === 20) return "onion"; if ((gmcN === 5 || gmcN === 10) && !gmcSet) return "goodsf"; if ((gmcN === 5 || gmcN === 10) && gmcSet) return "dangol"; return ""; }
