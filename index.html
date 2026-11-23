@@ -2648,7 +2648,24 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         var ws = wb.Sheets[wb.SheetNames[0]];
         var range = XLSX.utils.decode_range(ws["!ref"]);
         var mc = detectMergeCols(ws); // 올웨이즈/TOGLE/토스 열 자동 인식
-        var matched = 0, unmatched = [];
+        var matched = 0, unmatched = [], pending = [];
+        // 매칭된 송장을 해당 행에 기입(운송장번호·택배사·주문상태)
+        var applyMatch = function (rr, chosen, rowCat, nameVal) {
+          chosen.used = true;
+          matched++;
+          setCell(ws, rr, mc.TRACKING, chosen.tracking, "s");
+          // 택배사: 송장 실제값 우선(운송장번호와 일치해야 함). 례답(꿀)은 롯데택배 고정. 비면 업체 기본값.
+          var vendor = classify(nameVal);
+          var cr;
+          if (rowCat === "honey" || isRedapHoney(nameVal)) {
+            cr = VENDOR_COURIER.honey;
+          } else {
+            cr = String(chosen.courier || "").replace(/\s+/g, "");
+            if (!cr) cr = (rowCat && VENDOR_COURIER[rowCat]) || (vendor && VENDOR_COURIER[vendor]) || "";
+          }
+          if (cr) setCell(ws, rr, mc.COURIER, cr, "s");
+          if (mc.STATUS != null && mc.STATUS >= 0 && mc.STATUS_VALUE) setCell(ws, rr, mc.STATUS, mc.STATUS_VALUE, "s");
+        };
         for (var r = mc.dataStart; r <= range.e.r; r++) {
           var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.PRODUCT_NAME })];
           if (!nameCell || !nameCell.v) continue;
@@ -2702,31 +2719,53 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             chosen = pickHit(strict, rowCat);
           }
           if (chosen) {
-            chosen.used = true;
-            matched++;
-            setCell(ws, r, mc.TRACKING, chosen.tracking, "s");
-            // 택배사: 기본은 송장파일 실제 값 우선(운송장번호와 일치해야 함), 비어있으면 업체 기본값.
-            // 단, 례답(꿀)은 항상 롯데택배로 고정 — 송장에 한진 등으로 잘못 들어와도 교정.
-            // 판정은 rowCat(categoryOf: "벌꿀"·"꿀스틱")으로 해서 "사양벌꿀" 등 상품명 변형도 커버.
-            var vendor = classify(nameCell.v);
-            var cr;
-            if (rowCat === "honey" || isRedapHoney(nameCell.v)) {
-              cr = VENDOR_COURIER.honey; // 례답 → 롯데택배 고정
-            } else {
-              cr = String(chosen.courier || "").replace(/\s+/g, ""); // "CJ 대한통운"→"CJ대한통운"
-              // 송장에 택배사 없으면 업체 기본값. rowCat(옵션까지 반영) 우선 — 과메기 goodsf/dangol 등 classify(상품명만)로 못잡는 것 커버.
-              if (!cr) cr = (rowCat && VENDOR_COURIER[rowCat]) || (vendor && VENDOR_COURIER[vendor]) || "";
-            }
-            if (cr) setCell(ws, r, mc.COURIER, cr, "s");
-            // 토스: 송장 채운 행은 주문상태를 "배송중"으로 변경해야 업로드됨
-            if (mc.STATUS != null && mc.STATUS >= 0 && mc.STATUS_VALUE) setCell(ws, r, mc.STATUS, mc.STATUS_VALUE, "s");
+            applyMatch(r, chosen, rowCat, nameCell.v);
           } else {
-            unmatched.push({
-              name: (receiverCell && receiverCell.v) || "(이름 없음)",
-              phone: (phoneCell && phoneCell.v) || "",
-              product: nameCell.v
+            // 1차(상품분류 엄격)에서 놓침 → 2차 구제 대상으로 보류(신원일치 + 주인이 유일한 미사용 송장이면 매칭)
+            pending.push({
+              r: r, phone: phone, rname: rname, rnameRaw: rnameRaw, raddr: raddr, rowCat: rowCat, nameVal: nameCell.v,
+              dispName: (receiverCell && receiverCell.v) || "(이름 없음)",
+              dispPhone: (phoneCell && phoneCell.v) || ""
             });
           }
+        }
+        // ── 2차 구제: 주문서·송장의 '상품 표기'가 달라 분류가 어긋난 행 처리.
+        //   같은 고객이 서로 다른 제품을 각기 다른 송장/택배로 받는데 제품명이 달라 1차에서 못 붙은 경우를 구제한다.
+        //   신원(전화 또는 이름+주소) 일치하는 '미사용' 송장이, 보류행들 중 '오직 이 행만' 주인으로 가리키는(유일) 때만 매칭.
+        //   두 보류행이 같은 송장을 다투거나 후보가 둘 이상이면 모호 → 미매칭 유지(오매칭 방지).
+        if (pending.length) {
+          var idCandsOf = function (p) {
+            var pool = [];
+            if (p.phone && combinedPhone[p.phone]) pool = pool.concat(combinedPhone[p.phone]);
+            if (p.rname && combinedName[p.rname]) pool = pool.concat(combinedName[p.rname]);
+            var out = [];
+            for (var i = 0; i < pool.length; i++) {
+              var e = pool[i];
+              if (e.used || out.indexOf(e) !== -1) continue;
+              var phoneOK = !!(p.phone && e.nphone === p.phone);
+              var nameEq = !!(p.rname && e.nname === p.rname);
+              var addrEq = !!(p.raddr && e.naddr && p.raddr.indexOf("*") === -1 && e.naddr.indexOf("*") === -1 && (e.naddr === p.raddr || e.naddr.indexOf(p.raddr) !== -1 || p.raddr.indexOf(e.naddr) !== -1));
+              var ok = phoneOK
+                ? !(p.rname && !isMaskedName(p.rnameRaw) && !isMaskedName(e.name) && e.nname !== p.rname) // 전화일치+동명이인 차단(가림이름은 허용)
+                : (nameEq && addrEq); // 전화 불일치(토스 안심번호 등)면 이름+주소 둘 다 일치해야
+              if (ok) out.push(e);
+            }
+            if (out.length > 1 && p.raddr) { // 후보 여럿이면 주소 정확일치로 좁힘
+              var byAddr = out.filter(function (e) { return e.naddr && e.naddr.indexOf("*") === -1 && e.naddr === p.raddr; });
+              if (byAddr.length) out = byAddr;
+            }
+            return out;
+          };
+          pending.forEach(function (p) { p.cands = idCandsOf(p); });
+          var cl = [], cc = []; // 송장별 '주인 후보 보류행' 수 집계
+          pending.forEach(function (p) { p.cands.forEach(function (e) { var k = cl.indexOf(e); if (k === -1) { cl.push(e); cc.push(1); } else cc[k]++; }); });
+          pending.forEach(function (p) {
+            if (p.cands.length === 1 && cc[cl.indexOf(p.cands[0])] === 1) {
+              applyMatch(p.r, p.cands[0], p.rowCat, p.nameVal); // 신원일치 + 유일한 미사용 송장 → 구제
+            } else {
+              unmatched.push({ name: p.dispName, phone: p.dispPhone, product: p.nameVal });
+            }
+          });
         }
         // 토스: 맨 윗행 안내박스(병합셀)가 !ref 밖(A2 시작)이면 포함시켜 원본 양식 그대로 유지
         if (mc.format === "토스") {
