@@ -838,6 +838,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
     carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·벌교새꼬막·여주진상미쌀·손질갑오징어·설향딸기", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
+    baechu: { name: "캄므유통(절임배추)", product: "절임배추 — 도착일 순 정렬", swatch: "#6fae4e", emoji: "🥬", file: "캄므유통_절임배추_발주.xlsx" },
     gasan: { name: "가산프레시", product: "홍가리비·통영 생굴·통영 석화", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
     goodsf: { name: "좋은씨푸드", product: "과메기(손질진공 단품 5·10미)", swatch: "#2e8b8b", emoji: "🐟", file: "좋은씨푸드_발주.xlsx" },
     dangol: { name: "단골대표님", product: "과메기(야채세트 5·10입)", swatch: "#7a5bb0", emoji: "🐟", file: "단골대표님_과메기_발주.xlsx" },
@@ -907,7 +908,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   function classify(name, opt) {
     if (name.indexOf("시나노") !== -1) return "carrot"; // 황금 시나노골드(사과) → 캄므 (사과 체크보다 먼저)
     if (name.indexOf("타이벡") !== -1) return "onion"; // 타이벡감귤 → 마니팜 (감귤 체크보다 먼저)
-    if (name.indexOf("절임배추") !== -1) return "carrot"; // 절임배추 → 캄므유통
+    if (name.indexOf("절임배추") !== -1) return "baechu"; // 절임배추 → 캄므(절임배추 전용 발주서, 도착일 정렬, 2026-11-24~)
     if (name.indexOf("콜라비") !== -1 && name.indexOf("절임배추") === -1) return "pumpkin"; // 제주 콜라비 → 몬딱제주(단가 최저, 2026-11-22~)
     if (/제주산?\s*무(?![가-힣])|월동무(?![가-힣])/.test(name)) return "onion"; // 제주무 → 마니팜 (무농약·무화과 등은 제외)
     if (name.indexOf("고구마") !== -1) return "carrot"; // 여주고구마 → 캄므
@@ -1133,6 +1134,43 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       setCell(ws, r, 14, pname);
       setCell(ws, r, 15, popt);
       setCell(ws, r, 16, qtyOut, "n");
+      r++;
+    });
+    extendRef(ws, Math.max(r - 1, 1), 16);
+    return XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  }
+
+  // 절임배추 옵션에서 도착일 추출 → 정렬키(월·일). 절임배추는 겨울철이라 1~6월은 이듬해로 보정(12월 뒤에 1월).
+  function baechuArrivalKey(opt) {
+    var m = String(opt == null ? "" : opt).match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (!m) return { key: Infinity, label: "" }; // 날짜 없으면 맨 뒤로
+    var mo = parseInt(m[1], 10), d = parseInt(m[2], 10);
+    var moAdj = (mo <= 6) ? mo + 12 : mo; // 12월 < 내년1월 순서 유지
+    return { key: moAdj * 100 + d, label: mo + "월" + d + "일 도착" };
+  }
+
+  // 캄므 절임배추 전용 발주서: 캄므 양식 그대로, 도착일 빠른 순 정렬 + 옵션에 도착일 표기
+  function fillBaechu(rows) {
+    var wb = loadTemplate("carrot");
+    var ws = wb.Sheets["기본양식"];
+    var sorted = rows.map(function (row) { return { row: row, ak: baechuArrivalKey(row.option) }; });
+    sorted.sort(function (a, b) { return a.ak.key - b.ak.key; });
+    var r = 1;
+    sorted.forEach(function (it) {
+      var row = it.row;
+      var bk = extractWeightKg(row.option);
+      var wtxt = bk ? (bk + "kg") : cleanOption(row.option);
+      var popt = it.ak.label ? (wtxt + " / " + it.ak.label) : wtxt; // 옵션칸: 중량 + 도착일
+      setCell(ws, r, 5, SENDER_NAME);
+      setCell(ws, r, 6, SENDER_PHONE_DASH);
+      setCell(ws, r, 7, row.receiver);
+      setCell(ws, r, 8, row.receiverPhone, "s");
+      setCell(ws, r, 11, row.zipcode, "s");
+      setCell(ws, r, 12, joinDetailAddr(row.address));
+      setCell(ws, r, 13, memo(row.entrancePw, row.request));
+      setCell(ws, r, 14, "절임배추");
+      setCell(ws, r, 15, popt);
+      setCell(ws, r, 16, row.qty, "n");
       r++;
     });
     extendRef(ws, Math.max(r - 1, 1), 16);
@@ -1696,7 +1734,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     return XLSX.write(wb, { type: "array", bookType: "xlsx" });
   }
 
-  var FILLERS = { peach: fillPeach, carrot: fillCarrot, pumpkin: fillPumpkin, potato: fillPotato, onion: fillOnion, tteok: fillTteok, honey: fillHoney, gasan: fillGasan, goodsf: fillGoodsf, dangol: fillDangol };
+  var FILLERS = { peach: fillPeach, carrot: fillCarrot, baechu: fillBaechu, pumpkin: fillPumpkin, potato: fillPotato, onion: fillOnion, tteok: fillTteok, honey: fillHoney, gasan: fillGasan, goodsf: fillGoodsf, dangol: fillDangol };
 
   // 주문 파일 형식 자동 인식 (올웨이즈 주문내역 / TOGLE 출고내역서 / 토스 주문배송관리)
   // 반환: 각 열 인덱스 + dataStart(데이터 시작행) + COURIER/TRACKING(합치기용) + format
@@ -1861,7 +1899,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
 
   function processOrders(orders) {
-    var buckets = { peach: [], carrot: [], pumpkin: [], potato: [], onion: [], tteok: [], honey: [], gasan: [], goodsf: [], dangol: [] };
+    var buckets = { peach: [], carrot: [], baechu: [], pumpkin: [], potato: [], onion: [], tteok: [], honey: [], gasan: [], goodsf: [], dangol: [] };
     var unmatched = {};
     var failed = {};
 
@@ -2184,7 +2222,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
     var vendorList = document.getElementById("vendorList");
     vendorList.innerHTML = "";
-    ["peach", "carrot", "gasan", "pumpkin", "potato", "onion", "goodsf", "dangol", "tteok", "honey"]
+    ["peach", "carrot", "baechu", "gasan", "pumpkin", "potato", "onion", "goodsf", "dangol", "tteok", "honey"]
       .filter(function (cat) { return report.outputs[cat] && report.outputs[cat].rows.length > 0; })
       .forEach(function (cat) {
       var meta = VENDOR_META[cat];
