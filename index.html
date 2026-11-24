@@ -2666,6 +2666,27 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
           if (cr) setCell(ws, rr, mc.COURIER, cr, "s");
           if (mc.STATUS != null && mc.STATUS >= 0 && mc.STATUS_VALUE) setCell(ws, rr, mc.STATUS, mc.STATUS_VALUE, "s");
         };
+        var addrOverlap = function (a, b) {
+          return !!(a && b && a.indexOf("*") === -1 && b.indexOf("*") === -1 && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1));
+        };
+        // 이 기준파일의 모든 받는분 주소 수집(동명이인 오매칭 방지용)
+        var allRowAddrs = [];
+        for (var pr = mc.dataStart; pr <= range.e.r; pr++) {
+          var pnc = ws[XLSX.utils.encode_cell({ r: pr, c: mc.PRODUCT_NAME })];
+          if (!pnc || !pnc.v) continue;
+          var pac = (mc.ADDRESS != null && mc.ADDRESS >= 0) ? ws[XLSX.utils.encode_cell({ r: pr, c: mc.ADDRESS })] : null;
+          var pa = normAddr(pac && pac.v);
+          if (pa && allRowAddrs.indexOf(pa) === -1) allRowAddrs.push(pa);
+        }
+        // 동명이인 가드: 송장 주소가 '이 주문 주소'와는 안 맞는데 '다른 주문의 주소'와 맞으면 → 그 주문 송장이므로 제외.
+        //   (물류센터 주소는 어느 고객 주문 주소와도 안 맞아 여기 안 걸림 → 전화 매칭 정상 유지)
+        var belongsToOtherRow = function (e, raddr) {
+          if (!(e.naddr && e.naddr.indexOf("*") === -1 && raddr && !addrOverlap(e.naddr, raddr))) return false;
+          for (var ai = 0; ai < allRowAddrs.length; ai++) {
+            if (allRowAddrs[ai] !== raddr && addrOverlap(e.naddr, allRowAddrs[ai])) return true;
+          }
+          return false;
+        };
         for (var r = mc.dataStart; r <= range.e.r; r++) {
           var nameCell = ws[XLSX.utils.encode_cell({ r: r, c: mc.PRODUCT_NAME })];
           if (!nameCell || !nameCell.v) continue;
@@ -2702,6 +2723,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
               if (phoneOK) {
                 // 전화 일치 시엔 이름도 양쪽 정상표기면 일치해야(동명이인 방지). 가려진 이름은 전화로 인정.
                 if (!isMaskedName(rnameRaw) && !isMaskedName(e.name) && rname && e.nname !== rname) return false;
+                // 전화가 겹쳐도(안심번호 재사용 등) 송장 주소가 다른 주문 것이면 제외 — 같은 이름 다른 주소 동명이인 방지
+                if (belongsToOtherRow(e, raddr)) return false;
               } else {
                 if (!(nameEq && addrEq)) return false; // 전화 불일치면 이름·주소 둘 다 일치해야(동명이인은 주소로 차단)
               }
@@ -2742,6 +2765,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
             for (var i = 0; i < pool.length; i++) {
               var e = pool[i];
               if (e.used || out.indexOf(e) !== -1) continue;
+              if (belongsToOtherRow(e, p.raddr)) continue; // 동명이인: 송장 주소가 다른 주문 것이면 구제대상에서도 제외
               var phoneOK = !!(p.phone && e.nphone === p.phone);
               var nameEq = !!(p.rname && e.nname === p.rname);
               var addrEq = !!(p.raddr && e.naddr && p.raddr.indexOf("*") === -1 && e.naddr.indexOf("*") === -1 && (e.naddr === p.raddr || e.naddr.indexOf(p.raddr) !== -1 || p.raddr.indexOf(e.naddr) !== -1));
