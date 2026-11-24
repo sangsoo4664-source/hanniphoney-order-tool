@@ -837,7 +837,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   var VENDOR_META = {
     peach: { name: "진과유통", product: "천도 복숭아", swatch: "#c9622f", emoji: "🍑", file: "진과유통_복숭아_발주.xlsx" },
-    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·벌교새꼬막·여주진상미쌀·손질갑오징어·설향딸기", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
+    carrot: { name: "캄므유통", product: "천도복숭아·흙당근·감자·토마토·아보카도·김치류·샤인머스캣·머스크메론·홍합·양파·벌교새꼬막·여주진상미쌀·손질갑오징어·설향딸기·알타리무", swatch: "#c98b2f", emoji: "🥕", file: "캄므유통_당근감자_발주.xlsx" },
     baechu: { name: "캄므유통(절임배추)", product: "절임배추 — 도착일 순 정렬", swatch: "#6fae4e", emoji: "🥬", file: "캄므유통_절임배추_발주.xlsx" },
     gasan: { name: "가산프레시", product: "홍가리비·통영 생굴·통영 석화", swatch: "#4a90d9", emoji: "🦪", file: "가산프레시_발주.xlsx" },
     goodsf: { name: "좋은씨푸드", product: "과메기(손질진공 단품 5·10미)", swatch: "#2e8b8b", emoji: "🐟", file: "좋은씨푸드_발주.xlsx" },
@@ -914,6 +914,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (name.indexOf("고구마") !== -1) return "carrot"; // 여주고구마 → 캄므
     if (name.indexOf("복숭아") !== -1) return "carrot"; // 천도복숭아 → 캄므유통
     if (name.indexOf("딸기") !== -1 || name.indexOf("설향") !== -1) return "carrot"; // 설향딸기 → 캄므유통
+    if (name.indexOf("알타리") !== -1 || name.indexOf("총각무") !== -1) return "carrot"; // 알타리무(총각무) → 캄므유통 (신상품)
     if (name.indexOf("가리비") !== -1 && name.indexOf("젓갈") === -1) return "gasan"; // 홍가리비 → 가산프레시 (젓갈 제외, 최저가)
     if (/김치|석박지|섞박지|깍두기|동치미/.test(name)) return "carrot"; // 김치류(포기·총각·열무·파·갓·맛김치·석박지·동치미·깍두기) → 캄므유통
     if (name.indexOf("메론") !== -1 || name.indexOf("멜론") !== -1) return "carrot"; // 머스크메론 → 캄므유통
@@ -1109,6 +1110,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         pname = "절임배추"; // 캄므유통
         var bk = extractWeightKg(row.option);
         popt = bk ? (bk + "kg") : cleanOption(row.option);
+      } else if (row.name.indexOf("알타리") !== -1 || row.name.indexOf("총각무") !== -1) {
+        pname = "알타리무"; // 캄므유통 신상품
+        var ak = extractWeightKg(row.option);
+        popt = ak ? (ak + "kg") : cleanOption(row.option);
       } else if (row.name.indexOf("딸기") !== -1 || row.name.indexOf("설향") !== -1) {
         // 설향딸기 → 캄므: 500g 내외 특 15구 / 상 20구 (등급·구수 어느 쪽만 있어도 상호 보정)
         pname = "설향딸기";
@@ -2395,6 +2400,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     if (n.indexOf("진상미") !== -1) return "carrot";
     if (n.indexOf("오징어") !== -1) return "carrot";
     if (n.indexOf("딸기") !== -1 || n.indexOf("설향") !== -1) return "carrot"; // 설향딸기 → 캄므유통
+    if (n.indexOf("알타리") !== -1 || n.indexOf("총각무") !== -1) return "carrot"; // 알타리무(총각무) → 캄므유통
     if (n.indexOf("절임배추") !== -1) return "carrot"; // 절임배추 → 캄므유통
     if (n.indexOf("콜라비") !== -1) return "pumpkin"; // 제주 콜라비 → 몬딱제주(단가 최저, 2026-11-22~)
     if (/제주산?\s*무(?![가-힣])|월동무(?![가-힣])/.test(n)) return "onion"; // 제주무 → 마니팜
