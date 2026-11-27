@@ -1056,8 +1056,14 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
         pname = "당도선별 머스크메론";
         popt = cleanOption(row.option);
       } else if (row.name.indexOf("홍합") !== -1) {
+        // 캄므는 1kg 단위만 판매. 옵션 "2+1"(증정 행사)이면 1kg 3개로 환산.
         pname = "홍합";
-        popt = cleanOption(row.option);
+        popt = "1kg";
+        var hhPlus = String(row.option).match(/(\d+)\s*\+\s*(\d+)/);      // "2+1" → 2,1 (홍보문구 안에 있어도 인식)
+        var hhPieces;
+        if (hhPlus) hhPieces = (parseInt(hhPlus[1], 10) || 0) + (parseInt(hhPlus[2], 10) || 0); // 2+1 = 3
+        else { var hhKg = extractWeightKg(String(row.option).replace(/[☆★][^☆★]*[☆★]/g, " ")); hhPieces = (hhKg != null && hhKg > 0) ? hhKg : 1; } // 단순 Nkg (홍보문구 제거 후)
+        qtyOut = hhPieces * (Number(row.qty) || 1);
       } else if (row.name.indexOf("양파") !== -1) {
         pname = "양파";
         popt = cleanOption(row.option);
